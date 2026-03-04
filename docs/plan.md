@@ -46,19 +46,20 @@
 
 ---
 
-## Phase 4: System Prompts
+## Phase 4: System Prompts ✅
 
-- [ ] `/system` command to set/view prompt
-- [ ] Per-model default system prompts
-- [ ] Persist system prompts to config
+- [x] `/system` command to set/view prompt
+- [x] Persist system prompts to config (~/.foundry-tui/config.json)
+- [ ] Per-model default system prompts (deferred - add to catalog if needed)
 
 ---
 
-## Phase 5: Conversations
+## Phase 5: Conversations ✅
 
-- [ ] Auto-save conversations to disk
-- [ ] Conversation browser/picker
-- [ ] Load/resume previous conversations
+- [x] Auto-save conversations to disk (~/.foundry-tui/conversations/)
+- [x] Conversation browser/picker (/load, /convs)
+- [x] Load/resume previous conversations
+- [x] Manual save with custom title (/save)
 
 ---
 
@@ -139,3 +140,5 @@ Interactive setup scripts for deploying Azure resources.
 | 2026-03-04 | Status bar fix | Complete | Fixed CSS selectors, optimized streaming performance |
 | 2026-03-04 | Env refactor | Complete | Moved serverless endpoints to .env, created .env.example |
 | 2026-03-04 | Setup scripts design | Complete | Added requirements for interactive Bash/PowerShell setup |
+| 2026-03-04 | Phase 4 | Complete | /system command with persistence |
+| 2026-03-04 | Phase 5 | Complete | Auto-save conversations, load/save commands, picker |

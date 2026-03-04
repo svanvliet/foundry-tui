@@ -13,9 +13,22 @@ from foundry_tui.api.client import ChatClient
 from foundry_tui.config import Config
 from foundry_tui.models import Model
 from foundry_tui.storage.logger import get_logger, log_api_error, log_api_request, log_event
-from foundry_tui.storage.persistence import get_last_model_id, set_last_model_id
+from foundry_tui.storage.conversations import (
+    Conversation,
+    generate_conversation_id,
+    generate_title,
+    load_conversation,
+    save_conversation,
+)
+from foundry_tui.storage.persistence import (
+    get_last_model_id,
+    get_system_prompt,
+    set_last_model_id,
+    set_system_prompt,
+)
 from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage
 from foundry_tui.ui.input import InputContainer, MessageInput
+from foundry_tui.ui.conversation_picker import ConversationPicker
 from foundry_tui.ui.model_picker import ModelPicker
 from foundry_tui.ui.status_bar import StatusBar
 
@@ -41,6 +54,8 @@ class FoundryApp(App):
         self.is_streaming = False
         self._current_streaming_message: StreamingMessage | None = None
         self._last_response: str = ""  # Store last assistant response for /copy
+        self._system_prompt: str | None = get_system_prompt()
+        self._conversation_id: str | None = None  # Current conversation ID for auto-save
 
         # Initialize unified API client
         self.client = ChatClient(config=config)
@@ -81,11 +96,16 @@ class FoundryApp(App):
 
         # Show welcome message
         chat_log = self.query_one(ChatLog)
+        system_info = ""
+        if self._system_prompt:
+            preview = self._system_prompt[:50] + "..." if len(self._system_prompt) > 50 else self._system_prompt
+            system_info = f"\nSystem prompt: [dim]{preview}[/dim]"
         welcome = Static(
             f"Welcome to Foundry TUI!\n\n"
-            f"Current model: [bold]{self.current_model.name}[/bold] ({self.current_model.provider})\n"
+            f"Current model: [bold]{self.current_model.name}[/bold] ({self.current_model.provider})"
+            f"{system_info}\n"
             f"Type a message and press Enter to chat.\n"
-            f"Commands: /models, /clear, /new, /copy, /export, /help, /quit",
+            f"Commands: /models, /system, /load, /new, /clear, /copy, /export, /help, /quit",
             id="welcome",
         )
         chat_log.mount(welcome)
@@ -128,6 +148,12 @@ class FoundryApp(App):
             await self._copy_last_response()
         elif cmd in ("/export",):
             await self._export_conversation(args)
+        elif cmd in ("/system", "/sys"):
+            await self._handle_system_prompt(args)
+        elif cmd in ("/conversations", "/convs", "/load"):
+            await self._show_conversation_picker()
+        elif cmd in ("/save",):
+            await self._save_current_conversation(args)
         elif cmd in ("/help", "/h", "/?"):
             await self._show_help()
         else:
@@ -150,9 +176,14 @@ class FoundryApp(App):
 
     async def _new_conversation(self) -> None:
         """Start a new conversation."""
+        # Auto-save current conversation before starting new one
+        if self.messages:
+            self._auto_save_conversation()
+
         self.messages.clear()
         self.total_tokens = 0
         self._last_response = ""
+        self._conversation_id = None  # Reset conversation ID
 
         chat_log = self.query_one(ChatLog)
         await chat_log.remove_children()
@@ -234,6 +265,164 @@ class FoundryApp(App):
         except Exception as e:
             await self._add_message("error", f"Failed to export: {e}")
 
+    async def _handle_system_prompt(self, args: str) -> None:
+        """Handle /system command."""
+        args = args.strip()
+
+        if not args:
+            # Show current system prompt
+            if self._system_prompt:
+                await self._add_message(
+                    "system",
+                    f"[bold]Current system prompt:[/bold]\n\n{self._system_prompt}",
+                )
+            else:
+                await self._add_message(
+                    "system",
+                    "No system prompt set. Use [bold]/system <prompt>[/bold] to set one.",
+                )
+        elif args.lower() == "clear":
+            # Clear system prompt
+            self._system_prompt = None
+            set_system_prompt(None)
+            await self._add_message("system", "System prompt cleared.")
+            log_event("System prompt cleared")
+        else:
+            # Set new system prompt
+            self._system_prompt = args
+            set_system_prompt(args)
+            # Show truncated preview
+            preview = args[:100] + "..." if len(args) > 100 else args
+            await self._add_message(
+                "system",
+                f"System prompt set ({len(args)} chars):\n\n[dim]{preview}[/dim]",
+            )
+            log_event("System prompt set", length=len(args))
+
+    async def _show_conversation_picker(self) -> None:
+        """Show the conversation picker."""
+        picker = ConversationPicker()
+        await self.push_screen(picker)
+
+    async def _save_current_conversation(self, title: str = "") -> None:
+        """Manually save the current conversation with optional title."""
+        if not self.messages:
+            await self._add_message("system", "No conversation to save.")
+            return
+
+        self._auto_save_conversation(title.strip() if title else None)
+        await self._add_message(
+            "system",
+            f"Conversation saved. Use [bold]/load[/bold] to browse saved conversations.",
+        )
+
+    def _auto_save_conversation(self, custom_title: str | None = None) -> None:
+        """Auto-save the current conversation."""
+        if not self.messages:
+            return
+
+        from datetime import datetime
+
+        now = datetime.now()
+
+        # Generate or reuse conversation ID
+        if not self._conversation_id:
+            self._conversation_id = generate_conversation_id()
+
+        # Generate title from first user message if not provided
+        messages_dict = [{"role": m.role, "content": m.content} for m in self.messages]
+        title = custom_title or generate_title(messages_dict)
+
+        # Create conversation object
+        conversation = Conversation(
+            id=self._conversation_id,
+            title=title,
+            model_id=self.current_model.id,
+            model_name=self.current_model.name,
+            provider=self.current_model.provider,
+            system_prompt=self._system_prompt,
+            messages=messages_dict,
+            created_at=now,  # Will be overwritten if loading existing
+            updated_at=now,
+            metadata={
+                "total_tokens": self.total_tokens,
+            },
+        )
+
+        # Try to preserve original created_at if this is an existing conversation
+        existing = load_conversation(self._conversation_id)
+        if existing:
+            conversation.created_at = existing.created_at
+
+        save_conversation(conversation)
+        log_event("Conversation auto-saved", id=self._conversation_id)
+
+    async def _load_conversation(self, conversation_id: str) -> None:
+        """Load a conversation by ID."""
+        conversation = load_conversation(conversation_id)
+        if not conversation:
+            await self._add_message("error", f"Conversation not found: {conversation_id}")
+            return
+
+        # Auto-save current conversation before loading
+        if self.messages:
+            self._auto_save_conversation()
+
+        # Clear current state
+        self.messages.clear()
+        self.total_tokens = 0
+        self._last_response = ""
+
+        chat_log = self.query_one(ChatLog)
+        await chat_log.remove_children()
+
+        # Load conversation state
+        self._conversation_id = conversation.id
+        self._system_prompt = conversation.system_prompt
+
+        # Try to switch to the conversation's model
+        model = self.config.catalog.get_model(conversation.model_id)
+        if model:
+            self.current_model = model
+            self._update_status_bar_model()
+
+        # Restore messages
+        for msg in conversation.messages:
+            self.messages.append(Message(role=msg["role"], content=msg["content"]))
+            await self._add_message(msg["role"], msg["content"])
+
+        # Find last assistant response for /copy
+        for msg in reversed(conversation.messages):
+            if msg["role"] == "assistant":
+                self._last_response = msg["content"]
+                break
+
+        # Restore token count if available
+        if "total_tokens" in conversation.metadata:
+            self.total_tokens = conversation.metadata["total_tokens"]
+            status_bar = self.query_one(StatusBar)
+            status_bar.session_tokens = self.total_tokens
+
+        await self._add_message(
+            "system",
+            f"Loaded conversation: [bold]{conversation.title}[/bold]\n"
+            f"Model: {conversation.model_name} · {len(conversation.messages)} messages",
+        )
+        log_event("Conversation loaded", id=conversation_id)
+
+    async def on_conversation_picker_conversation_selected(
+        self, event: ConversationPicker.ConversationSelected
+    ) -> None:
+        """Handle conversation selection."""
+        await self._load_conversation(event.conversation_id)
+        self.query_one(MessageInput).focus()
+
+    async def on_conversation_picker_cancelled(
+        self, event: ConversationPicker.Cancelled
+    ) -> None:
+        """Handle conversation picker cancellation."""
+        self.query_one(MessageInput).focus()
+
     async def on_model_picker_model_selected(self, event: ModelPicker.ModelSelected) -> None:
         """Handle model selection."""
         old_model = self.current_model
@@ -276,6 +465,9 @@ class FoundryApp(App):
         help_text = (
             "[bold]Available Commands:[/bold]\n\n"
             "  /models, /m       - Select a different model\n"
+            "  /system [prompt]  - View/set system prompt (/system clear to remove)\n"
+            "  /load, /convs     - Browse and load saved conversations\n"
+            "  /save [title]     - Save current conversation with optional title\n"
             "  /new, /n          - Start a new conversation\n"
             "  /clear, /c        - Clear chat history\n"
             "  /copy             - Copy last response to clipboard\n"
@@ -287,7 +479,8 @@ class FoundryApp(App):
             "  Shift+Enter - New line\n"
             "  Ctrl+C      - Quit\n"
             "  Ctrl+L      - Clear screen\n"
-            "  Escape      - Cancel / Close picker"
+            "  Escape      - Cancel / Close picker\n\n"
+            "[dim]Conversations are auto-saved after each response.[/dim]"
         )
         await self._add_message("system", help_text)
 
@@ -331,10 +524,16 @@ class FoundryApp(App):
         # Add to message history
         self.messages.append(Message(role="user", content=text))
 
+        # Build messages for API (include system prompt if set)
+        api_messages = []
+        if self._system_prompt:
+            api_messages.append(Message(role="system", content=self._system_prompt))
+        api_messages.extend(self.messages)
+
         # Log the request
         log_api_request(
             self.current_model.id,
-            [{"role": m.role, "content": m.content[:100]} for m in self.messages],
+            [{"role": m.role, "content": m.content[:100]} for m in api_messages],
         )
 
         # Update status - sending request
@@ -356,7 +555,7 @@ class FoundryApp(App):
 
             async for chunk in self.client.stream_chat(
                 model=self.current_model,
-                messages=self.messages,
+                messages=api_messages,
                 max_tokens=self.current_model.max_output_tokens,
             ):
                 if chunk.content:
@@ -401,6 +600,9 @@ class FoundryApp(App):
                 model=self.current_model.id,
                 response_len=len(full_response),
             )
+
+            # Auto-save conversation
+            self._auto_save_conversation()
 
             # Set ready
             status_bar.set_ready()

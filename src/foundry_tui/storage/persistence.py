@@ -47,3 +47,19 @@ def set_last_model_id(model_id: str) -> None:
     config = load_user_config()
     config["last_model_id"] = model_id
     save_user_config(config)
+
+
+def get_system_prompt() -> str | None:
+    """Get the current system prompt."""
+    config = load_user_config()
+    return config.get("system_prompt")
+
+
+def set_system_prompt(prompt: str | None) -> None:
+    """Save the system prompt (None to clear)."""
+    config = load_user_config()
+    if prompt:
+        config["system_prompt"] = prompt
+    elif "system_prompt" in config:
+        del config["system_prompt"]
+    save_user_config(config)

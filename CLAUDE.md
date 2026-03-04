@@ -53,12 +53,17 @@ uv run foundry-tui
 | Command | Description |
 |---------|-------------|
 | `/models`, `/m` | Open model picker (fuzzy search) |
+| `/system [prompt]` | View/set system prompt (`/system clear` to remove) |
+| `/load`, `/convs` | Browse and load saved conversations |
+| `/save [title]` | Save current conversation with optional title |
 | `/new`, `/n` | Start new conversation |
 | `/clear`, `/c` | Clear chat history |
 | `/copy` | Copy last response to clipboard |
 | `/export [file]` | Export conversation to JSON |
 | `/help`, `/h` | Show help |
 | `/quit`, `/q` | Exit |
+
+Conversations are auto-saved after each response to `~/.foundry-tui/conversations/`.
 
 ## API Configuration
 
@@ -108,15 +113,14 @@ Three deployment types are supported:
 - **Phase 1** (MVP): Complete
 - **Phase 2** (Multi-Model): Complete
 - **Phase 3** (Polish): Complete
-- **Phase 4** (System Prompts): Not started
-- **Phase 5** (Conversations): Not started
+- **Phase 4** (System Prompts): Complete
+- **Phase 5** (Conversations): Complete
 - **Phase 6** (Azure Setup Scripts): Not started
 
 ## Next Steps
 
 1. Implement Azure setup scripts (Phase 6) - interactive Bash/PowerShell scripts for resource deployment
-2. Implement `/system` command for system prompts
-3. Add conversation persistence and browser
+2. Tool/function calling support (Phase 7)
 
 ## Serverless Configuration
 
