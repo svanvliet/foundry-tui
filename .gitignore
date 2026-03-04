@@ -1,0 +1,36 @@
+# Environment
+.env
+.env.*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Tools
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.pytest_cache/
+htmlcov/
+.coverage
+*.lcov
+
+# App
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
