@@ -1,6 +1,8 @@
 # Environment
 .env
-.env.*
+.env.local
+.env.backup
+!.env.example
 
 # Python
 .venv/

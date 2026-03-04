@@ -59,6 +59,13 @@ class Config:
             raise ConfigError(f"Missing serverless key: {key_env}")
         return key
 
+    def get_serverless_endpoint(self, endpoint_env: str) -> str:
+        """Get a serverless endpoint URL from environment."""
+        endpoint = os.getenv(endpoint_env)
+        if not endpoint:
+            raise ConfigError(f"Missing serverless endpoint: {endpoint_env}")
+        return endpoint
+
 
 def find_project_root() -> Path:
     """Find the project root directory."""

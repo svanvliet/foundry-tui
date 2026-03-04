@@ -7,8 +7,8 @@
       "category": "chat",
       "deployment": {
         "type": "serverless",
-        "endpoint": "https://ft-mistral-small.eastus.models.ai.azure.com",
-        "key_env": "SERVERLESS_KEY_FT_MISTRAL_SMALL"
+        "endpoint_env": "SERVERLESS_ENDPOINT_MISTRAL_SMALL",
+        "key_env": "SERVERLESS_KEY_MISTRAL_SMALL"
       },
       "capabilities": {
         "tools": true,

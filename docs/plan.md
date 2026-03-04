@@ -62,11 +62,60 @@
 
 ---
 
-## Phase 6: Advanced Features (Future)
+## Phase 6: Azure Setup Scripts
+
+Interactive setup scripts for deploying Azure resources.
+
+- [ ] **6.1 Script Infrastructure**
+  - [ ] `scripts/lib/common.sh` - Shared Bash functions (colors, prompts, Azure CLI wrappers)
+  - [ ] `scripts/lib/common.ps1` - Shared PowerShell functions
+  - [ ] `scripts/models/catalog.json` - Model definitions with cost estimates
+
+- [ ] **6.2 Main Setup Script**
+  - [ ] `scripts/setup.sh` - Interactive Bash setup
+  - [ ] `scripts/setup.ps1` - Interactive PowerShell setup
+  - [ ] Prerequisites check (Azure CLI, authentication, subscription)
+  - [ ] Resource group creation with location selection
+  - [ ] Model selection UI with cost estimates
+  - [ ] Automatic .env population
+
+- [ ] **6.3 Azure OpenAI Deployment**
+  - [ ] `scripts/lib/azure-openai.sh` / `.ps1`
+  - [ ] Create Azure OpenAI resource
+  - [ ] Deploy GPT and o-series models
+  - [ ] Retrieve and store endpoint/keys
+
+- [ ] **6.4 Azure AI Services Deployment**
+  - [ ] `scripts/lib/azure-ai.sh` / `.ps1`
+  - [ ] Create Azure AI Services resource
+  - [ ] Deploy DeepSeek, Grok, Kimi models
+  - [ ] Retrieve and store endpoint/keys
+
+- [ ] **6.5 Serverless Deployment**
+  - [ ] `scripts/lib/serverless.sh` / `.ps1`
+  - [ ] Guide for marketplace model deployment (requires portal)
+  - [ ] Prompt for endpoint/key after manual deployment
+  - [ ] Validate connectivity
+
+- [ ] **6.6 Teardown Script**
+  - [ ] `scripts/teardown.sh` - Bash cleanup
+  - [ ] `scripts/teardown.ps1` - PowerShell cleanup
+  - [ ] List and confirm resources to delete
+  - [ ] Delete in correct order
+  - [ ] Optional .env cleanup
+
+- [ ] **6.7 Verification & Testing**
+  - [ ] Test API connectivity for each endpoint
+  - [ ] Validate model responses
+  - [ ] Error reporting with troubleshooting links
+
+---
+
+## Phase 7: Advanced Features (Future)
 
 - [ ] Tool/function calling support
 - [ ] Per-model token tracking (cumulative across sessions)
-- [ ] Model provisioning from catalog
+- [ ] Model provisioning from catalog (in-app)
 - [ ] Side-by-side model comparison
 - [ ] Image/vision support
 
@@ -74,8 +123,8 @@
 
 ## Current Status
 
-**Phase**: 3 - Polish (Complete)
-**Current Task**: Ready for Phase 4
+**Phase**: 6 - Azure Setup Scripts (Not Started)
+**Current Task**: Implement setup script infrastructure
 **Blockers**: None
 
 ---
@@ -88,3 +137,5 @@
 | 2026-03-04 | Phase 2 | Complete | Multi-model with fuzzy picker |
 | 2026-03-04 | Phase 3 | Complete | Markdown, logging, status bar, commands |
 | 2026-03-04 | Status bar fix | Complete | Fixed CSS selectors, optimized streaming performance |
+| 2026-03-04 | Env refactor | Complete | Moved serverless endpoints to .env, created .env.example |
+| 2026-03-04 | Setup scripts design | Complete | Added requirements for interactive Bash/PowerShell setup |

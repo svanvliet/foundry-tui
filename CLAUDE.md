@@ -110,11 +110,19 @@ Three deployment types are supported:
 - **Phase 3** (Polish): Complete
 - **Phase 4** (System Prompts): Not started
 - **Phase 5** (Conversations): Not started
+- **Phase 6** (Azure Setup Scripts): Not started
 
 ## Next Steps
 
-1. Implement `/system` command for system prompts
-2. Add conversation persistence and browser
-3. Consider tool/function calling support
+1. Implement Azure setup scripts (Phase 6) - interactive Bash/PowerShell scripts for resource deployment
+2. Implement `/system` command for system prompts
+3. Add conversation persistence and browser
+
+## Serverless Configuration
+
+Serverless models (like Mistral) use environment variables for both endpoint and key:
+- `endpoint_env` in models-catalog.json points to env var for the URL
+- `key_env` points to env var for the API key
+- Config loads both via `get_serverless_endpoint()` and `get_serverless_key()`
 
 See `docs/plan.md` for detailed implementation plan and `docs/requirements.md` for full requirements.

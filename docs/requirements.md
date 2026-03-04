@@ -376,9 +376,142 @@ foundry-tui/
 
 ---
 
+---
+
+## Azure Setup Scripts
+
+### Overview
+
+Interactive setup scripts that guide users through deploying the Azure resources needed to run Foundry TUI. Scripts are provided for both Bash (macOS/Linux/WSL) and PowerShell (Windows).
+
+### Prerequisites
+
+- Azure CLI (`az`) installed and authenticated
+- Active Azure subscription with permissions to create resources
+- For serverless models: Access granted to Azure AI Foundry marketplace
+
+### Script Architecture
+
+```
+scripts/
+├── setup.sh                    # Main interactive setup (Bash)
+├── setup.ps1                   # Main interactive setup (PowerShell)
+├── teardown.sh                 # Resource cleanup (Bash)
+├── teardown.ps1                # Resource cleanup (PowerShell)
+├── lib/
+│   ├── common.sh               # Shared functions (Bash)
+│   ├── common.ps1              # Shared functions (PowerShell)
+│   ├── azure-openai.sh         # Azure OpenAI deployment
+│   ├── azure-openai.ps1
+│   ├── azure-ai.sh             # Azure AI Services deployment
+│   ├── azure-ai.ps1
+│   ├── serverless.sh           # Serverless endpoint deployment
+│   └── serverless.ps1
+└── models/
+    └── catalog.json            # Model definitions with cost info
+```
+
+### Interactive Flow
+
+1. **Welcome & Prerequisites Check**
+   - Verify Azure CLI is installed and authenticated
+   - Check subscription access
+   - Display current subscription and confirm
+
+2. **Resource Group Setup**
+   - Prompt for resource group name (default: `foundry-tui-rg`)
+   - Prompt for location (default: `eastus`)
+   - Create resource group if it doesn't exist
+
+3. **Model Selection**
+   - Display available models grouped by category
+   - Show estimated monthly cost for each model type
+   - Allow multi-select with recommended defaults highlighted
+   - Confirm selection before proceeding
+
+4. **Azure OpenAI Setup** (if GPT/o-series models selected)
+   - Create Azure OpenAI resource
+   - Deploy selected models
+   - Display endpoint and keys
+   - Automatically populate .env
+
+5. **Azure AI Services Setup** (if DeepSeek/Grok/Kimi selected)
+   - Create Azure AI Services resource
+   - Deploy selected models
+   - Display endpoint and keys
+   - Automatically populate .env
+
+6. **Serverless Setup** (if Mistral/marketplace models selected)
+   - Guide through Azure AI Foundry portal for marketplace models
+   - Prompt for endpoint URL and key after manual deployment
+   - Automatically populate .env
+
+7. **Verification**
+   - Test API connectivity for each deployed model
+   - Report success/failure for each endpoint
+   - Suggest troubleshooting steps if any fail
+
+8. **Completion**
+   - Display summary of deployed resources
+   - Show next steps (run `uv run foundry-tui`)
+   - Remind about teardown script to avoid charges
+
+### Cost Estimates Display
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║  Model Selection                                                  ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                   ║
+║  ── Azure OpenAI Models ──────────────────────────────────────   ║
+║  [x] GPT-4o           ~$5/1M input, $15/1M output tokens         ║
+║  [ ] GPT-4o Mini      ~$0.15/1M input, $0.60/1M output tokens    ║
+║  [ ] GPT-4.1          ~$2/1M input, $8/1M output tokens          ║
+║  [ ] o4-mini          ~$1.10/1M input, $4.40/1M output tokens    ║
+║                                                                   ║
+║  ── Azure AI Models (pay-per-token) ──────────────────────────   ║
+║  [ ] DeepSeek R1      ~$0.55/1M input, $2.19/1M output tokens    ║
+║  [ ] DeepSeek V3.2    ~$0.27/1M input, $1.10/1M output tokens    ║
+║  [ ] Grok 3           Pricing varies                              ║
+║                                                                   ║
+║  ── Serverless (marketplace) ─────────────────────────────────   ║
+║  [ ] Mistral Small    ~$0.10/1M input, $0.30/1M output tokens    ║
+║                                                                   ║
+║  Base cost: $0/month (pay per token only)                        ║
+║                                                                   ║
+║  ↑↓ Navigate  Space Toggle  Enter Confirm  q Quit                ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+### Teardown Script
+
+Interactive cleanup that:
+1. Lists all resources created by setup
+2. Confirms deletion with user
+3. Deletes in reverse order (deployments → services → resource group)
+4. Cleans up .env entries (optional)
+
+### Environment Variable Management
+
+Scripts automatically update `.env` file:
+- Backs up existing `.env` to `.env.backup`
+- Adds/updates only the variables for deployed services
+- Preserves user customizations in app settings section
+
+### Error Handling
+
+- Check Azure CLI authentication before starting
+- Validate subscription quotas for requested models
+- Retry transient failures with exponential backoff
+- Provide clear error messages with documentation links
+- Save partial progress to allow resuming
+
+---
+
 ## References
 
 - [Textual Documentation](https://textual.textualize.io/)
 - [Azure OpenAI API Reference](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference)
 - [Azure AI Model Inference API](https://learn.microsoft.com/en-us/azure/ai-studio/reference/reference-model-inference-api)
 - [OpenAI Python SDK](https://github.com/openai/openai-python) (works with Azure)
+- [Azure CLI Documentation](https://learn.microsoft.com/en-us/cli/azure/)

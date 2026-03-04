@@ -50,9 +50,10 @@ class ChatClient:
             raise ValueError(f"Model {model.id} is not a serverless deployment")
 
         if model.id not in self._serverless_clients:
+            endpoint = self.config.get_serverless_endpoint(model.deployment.endpoint_env)
             api_key = self.config.get_serverless_key(model.deployment.key_env)
             self._serverless_clients[model.id] = ServerlessClient(
-                endpoint=model.deployment.endpoint,
+                endpoint=endpoint,
                 api_key=api_key,
             )
         return self._serverless_clients[model.id]

@@ -47,7 +47,7 @@ class ServerlessDeployment(BaseModel):
     """Serverless endpoint deployment configuration."""
 
     type: Literal["serverless"]
-    endpoint: str
+    endpoint_env: str
     key_env: str
 
 
