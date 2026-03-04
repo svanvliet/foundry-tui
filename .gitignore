@@ -23,6 +23,10 @@ htmlcov/
 
 # App
 logs/
+.foundry-tui/
+
+# uv
+uv.lock
 
 # OS
 .DS_Store

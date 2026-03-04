@@ -1,293 +1,348 @@
 {
-  "deployed": [
+  "models": [
     {
-      "name": "mistral-small-2503",
+      "id": "mistral-small-2503",
+      "name": "Mistral Small",
       "provider": "mistral",
-      "type": "serverless",
-      "endpoint": "https://ft-mistral-small.eastus.models.ai.azure.com",
-      "env_key": "SERVERLESS_KEY_FT_MISTRAL_SMALL",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "serverless",
+        "endpoint": "https://ft-mistral-small.eastus.models.ai.azure.com",
+        "key_env": "SERVERLESS_KEY_FT_MISTRAL_SMALL"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 32000,
+      "max_output_tokens": 8192
     },
     {
-      "name": "gpt-4o",
+      "id": "gpt-4o",
+      "name": "GPT-4o",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-4o",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-4o"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 128000,
+      "max_output_tokens": 16384
     },
     {
-      "name": "gpt-4o-mini",
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o Mini",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-4o-mini",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-4o-mini"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 128000,
+      "max_output_tokens": 16384
     },
     {
-      "name": "gpt-4.1",
+      "id": "gpt-4.1",
+      "name": "GPT-4.1",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-4-1",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-4-1"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 1047576,
+      "max_output_tokens": 32768
     },
     {
-      "name": "gpt-4.1-mini",
+      "id": "gpt-4.1-mini",
+      "name": "GPT-4.1 Mini",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-4-1-mini",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-4-1-mini"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 1047576,
+      "max_output_tokens": 32768
     },
     {
-      "name": "gpt-4.1-nano",
+      "id": "gpt-4.1-nano",
+      "name": "GPT-4.1 Nano",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-4-1-nano",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-4-1-nano"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 1047576,
+      "max_output_tokens": 32768
     },
     {
-      "name": "gpt-5",
+      "id": "gpt-5",
+      "name": "GPT-5",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-5-chat",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-5-chat"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 256000,
+      "max_output_tokens": 32768
     },
     {
-      "name": "gpt-5-mini",
+      "id": "gpt-5-mini",
+      "name": "GPT-5 Mini",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-5-mini",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-5-mini"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 256000,
+      "max_output_tokens": 32768
     },
     {
-      "name": "gpt-5-nano",
+      "id": "gpt-5-nano",
+      "name": "GPT-5 Nano",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-5-nano",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-5-nano"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 256000,
+      "max_output_tokens": 32768
     },
     {
-      "name": "gpt-5.1",
+      "id": "gpt-5.1",
+      "name": "GPT-5.1",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "gpt-5-1-chat",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "gpt-5-1-chat"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 256000,
+      "max_output_tokens": 65536
     },
     {
+      "id": "o1",
       "name": "o1",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "o1",
-      "supports_tools": false,
-      "supports_streaming": true
+      "category": "reasoning",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "o1"
+      },
+      "capabilities": {
+        "tools": false,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 200000,
+      "max_output_tokens": 100000
     },
     {
-      "name": "o3-mini",
+      "id": "o3-mini",
+      "name": "o3 Mini",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "o3-mini",
-      "supports_tools": false,
-      "supports_streaming": true
+      "category": "reasoning",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "o3-mini"
+      },
+      "capabilities": {
+        "tools": false,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 200000,
+      "max_output_tokens": 100000
     },
     {
-      "name": "o4-mini",
+      "id": "o4-mini",
+      "name": "o4 Mini",
       "provider": "openai",
-      "type": "azure_openai",
-      "deployment_name": "o4-mini",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "reasoning",
+      "deployment": {
+        "type": "azure_openai",
+        "deployment_name": "o4-mini"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 200000,
+      "max_output_tokens": 100000
     },
     {
-      "name": "DeepSeek-R1",
+      "id": "deepseek-r1",
+      "name": "DeepSeek R1",
       "provider": "deepseek",
-      "type": "azure_ai",
-      "deployment_name": "deepseek-r1",
-      "supports_tools": false,
-      "supports_streaming": true
+      "category": "reasoning",
+      "deployment": {
+        "type": "azure_ai",
+        "deployment_name": "deepseek-r1"
+      },
+      "capabilities": {
+        "tools": false,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 64000,
+      "max_output_tokens": 8192
     },
     {
-      "name": "DeepSeek-V3.2",
+      "id": "deepseek-v3.2",
+      "name": "DeepSeek V3.2",
       "provider": "deepseek",
-      "type": "azure_ai",
-      "deployment_name": "deepseek-v3-2",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_ai",
+        "deployment_name": "deepseek-v3-2"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 64000,
+      "max_output_tokens": 8192
     },
     {
-      "name": "grok-3",
+      "id": "grok-3",
+      "name": "Grok 3",
       "provider": "xai",
-      "type": "azure_ai",
-      "deployment_name": "grok-3",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_ai",
+        "deployment_name": "grok-3"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 131072,
+      "max_output_tokens": 16384
     },
     {
-      "name": "grok-4.1-fast-reasoning",
+      "id": "grok-4.1-fast-reasoning",
+      "name": "Grok 4.1 Fast Reasoning",
       "provider": "xai",
-      "type": "azure_ai",
-      "deployment_name": "grok-4-1-fast-reasoning",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "reasoning",
+      "deployment": {
+        "type": "azure_ai",
+        "deployment_name": "grok-4-1-fast-reasoning"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": true
+      },
+      "context_window": 131072,
+      "max_output_tokens": 32768
     },
     {
-      "name": "Kimi-K2.5",
+      "id": "kimi-k2.5",
+      "name": "Kimi K2.5",
       "provider": "moonshot",
-      "type": "azure_ai",
-      "deployment_name": "kimi-k2-5",
-      "supports_tools": true,
-      "supports_streaming": true
+      "category": "chat",
+      "deployment": {
+        "type": "azure_ai",
+        "deployment_name": "kimi-k2-5"
+      },
+      "capabilities": {
+        "tools": true,
+        "streaming": true,
+        "vision": false
+      },
+      "context_window": 131072,
+      "max_output_tokens": 16384
     }
   ],
-  "available": [
+  "available_for_provisioning": [
     {
+      "id": "mistral-small-2503",
       "registry": "azureml-mistral",
-      "model": "mistral-small-2503",
-      "model_id": "azureml://registries/azureml-mistral/models/mistral-small-2503",
-      "status": "available"
+      "model_id": "azureml://registries/azureml-mistral/models/mistral-small-2503"
     },
     {
+      "id": "codestral-2501",
       "registry": "azureml-mistral",
-      "model": "Codestral-2501",
-      "model_id": "azureml://registries/azureml-mistral/models/Codestral-2501",
-      "status": "available"
+      "model_id": "azureml://registries/azureml-mistral/models/Codestral-2501"
     },
     {
+      "id": "mistral-medium-2505",
       "registry": "azureml-mistral",
-      "model": "mistral-medium-2505",
-      "model_id": "azureml://registries/azureml-mistral/models/mistral-medium-2505",
-      "status": "available"
+      "model_id": "azureml://registries/azureml-mistral/models/mistral-medium-2505"
     },
     {
+      "id": "llama-4-scout-17b",
       "registry": "azureml-meta",
-      "model": "Llama-4-Scout-17B-16E-Instruct",
-      "model_id": "azureml://registries/azureml-meta/models/Llama-4-Scout-17B-16E-Instruct",
-      "status": "available"
+      "model_id": "azureml://registries/azureml-meta/models/Llama-4-Scout-17B-16E-Instruct"
     },
     {
+      "id": "llama-4-maverick-17b",
       "registry": "azureml-meta",
-      "model": "Llama-4-Maverick-17B-128E-Instruct-FP8",
-      "model_id": "azureml://registries/azureml-meta/models/Llama-4-Maverick-17B-128E-Instruct-FP8",
-      "status": "available"
+      "model_id": "azureml://registries/azureml-meta/models/Llama-4-Maverick-17B-128E-Instruct-FP8"
     },
     {
+      "id": "llama-3.3-70b",
       "registry": "azureml-meta",
-      "model": "Llama-3.3-70B-Instruct",
-      "model_id": "azureml://registries/azureml-meta/models/Llama-3.3-70B-Instruct",
-      "status": "available"
+      "model_id": "azureml://registries/azureml-meta/models/Llama-3.3-70B-Instruct"
     },
     {
-      "registry": "azureml-meta",
-      "model": "Llama-3.2-11B-Vision-Instruct",
-      "model_id": "azureml://registries/azureml-meta/models/Llama-3.2-11B-Vision-Instruct",
-      "status": "available"
-    },
-    {
-      "registry": "azureml-meta",
-      "model": "Llama-3.2-90B-Vision-Instruct",
-      "model_id": "azureml://registries/azureml-meta/models/Llama-3.2-90B-Vision-Instruct",
-      "status": "available"
-    },
-    {
-      "registry": "azureml-meta",
-      "model": "Meta-Llama-3.1-405B-Instruct",
-      "model_id": "azureml://registries/azureml-meta/models/Meta-Llama-3.1-405B-Instruct",
-      "status": "available"
-    },
-    {
-      "registry": "azureml-meta",
-      "model": "Meta-Llama-3.1-8B-Instruct",
-      "model_id": "azureml://registries/azureml-meta/models/Meta-Llama-3.1-8B-Instruct",
-      "status": "available"
-    },
-    {
+      "id": "cohere-command-a",
       "registry": "azureml-cohere",
-      "model": "cohere-command-a",
-      "model_id": "azureml://registries/azureml-cohere/models/cohere-command-a",
-      "status": "available"
-    },
-    {
-      "registry": "azureml-cohere",
-      "model": "Cohere-embed-v3-english",
-      "model_id": "azureml://registries/azureml-cohere/models/Cohere-embed-v3-english",
-      "status": "available"
-    },
-    {
-      "registry": "azureml-cohere",
-      "model": "Cohere-embed-v3-multilingual",
-      "model_id": "azureml://registries/azureml-cohere/models/Cohere-embed-v3-multilingual",
-      "status": "available"
-    },
-    {
-      "registry": "azureml",
-      "model": "Phi-4-mini-reasoning",
-      "model_id": "azureml://registries/azureml/models/Phi-4-mini-reasoning",
-      "status": "available_no_marketplace_plan"
-    },
-    {
-      "registry": "azureml",
-      "model": "Phi-4-reasoning",
-      "model_id": "azureml://registries/azureml/models/Phi-4-reasoning",
-      "status": "available_no_marketplace_plan"
-    }
-  ],
-  "unavailable": [
-    {
-      "registry": "azureml-mistral",
-      "model": "Mistral-Large-3",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml-mistral",
-      "model": "Mistral-Large-2411",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml-mistral",
-      "model": "Mistral-large-2407",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml-mistral",
-      "model": "Mistral-Nemo",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml-meta",
-      "model": "Llama-3.2-3B-Instruct",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml-cohere",
-      "model": "Cohere-command-r",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml-cohere",
-      "model": "Cohere-command-r-plus",
-      "status": "not_available"
-    },
-    {
-      "registry": "azureml",
-      "model": "Phi-4-mini-reasoning",
-      "status": "error"
-    },
-    {
-      "registry": "azureml",
-      "model": "Phi-4-reasoning",
-      "status": "error"
-    },
-    {
-      "registry": "azureml",
-      "model": "Phi-4-reasoning-plus",
-      "status": "not_available"
+      "model_id": "azureml://registries/azureml-cohere/models/cohere-command-a"
     }
   ]
 }

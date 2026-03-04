@@ -1,0 +1,78 @@
+/* Foundry TUI Styles */
+
+Screen {
+    layout: grid;
+    grid-size: 1;
+    grid-rows: 1fr auto auto;
+}
+
+/* Chat message area */
+#chat-container {
+    height: 100%;
+    scrollbar-gutter: stable;
+}
+
+#chat-log {
+    height: auto;
+    padding: 1 2;
+}
+
+.message {
+    margin-bottom: 1;
+    padding: 1 2;
+}
+
+.message-user {
+    background: $primary-darken-2;
+    border: solid $primary;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+.message-assistant {
+    background: $surface;
+    border: solid $secondary;
+    border-title-color: $text;
+    border-title-style: bold;
+}
+
+.message-error {
+    background: $error 20%;
+    border: solid $error;
+    color: $error;
+}
+
+.message-system {
+    background: $warning 20%;
+    border: solid $warning;
+    color: $warning;
+}
+
+/* Input area */
+#input-container {
+    height: auto;
+    max-height: 10;
+    padding: 0 1;
+    border-top: solid $primary-darken-1;
+}
+
+#message-input {
+    height: auto;
+    min-height: 3;
+    max-height: 8;
+    margin: 1 0;
+    border: solid $primary-darken-2;
+}
+
+#message-input:focus {
+    border: solid $primary;
+}
+
+/* Status bar - styles defined in StatusBar.DEFAULT_CSS */
+
+/* Welcome message */
+#welcome {
+    text-align: center;
+    padding: 2;
+    color: $text-muted;
+}
