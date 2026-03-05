@@ -77,42 +77,34 @@ Memories are stored locally and injected into the system prompt for every conver
 
 | Tool | Description |
 |------|-------------|
-| `save_memory` | Store a fact or preference about the user. Args: `content` (string) |
-| `recall_memories` | Search stored memories by keyword. Args: `query` (string) |
+| `save_memory` | Store a single fact or preference about the user. Args: `content` (string) |
+| `recall_memories` | Search stored memories. Args: `query` (string) |
 | `forget_memory` | Delete a memory by its ID. Args: `memory_id` (string) |
 
 **Behavior:**
 - **Global scope**: All models share the same memory store
-- **Proactive saving**: System prompt instructs models to save useful facts about the user automatically (e.g., preferences, name, role, coding style)
-- **Auto-injection**: All stored memories are injected into the system prompt for every conversation (no smart filtering — user manages manually)
+- **One fact per save**: Tool description instructs models to save one fact per call for granular management
+- **Proactive saving**: System prompt instructs models to save useful facts about the user automatically
 - **No memory limit**: User manages memory size via `/memory` command or direct file editing
 - **Graceful degradation**: Models without tool support (o1, o3-mini, DeepSeek R1) still receive injected memories but cannot save new ones
 
+**Memory search (two modes):**
+- **Keyword search** (default): Case-insensitive substring matching. Works out of the box, no configuration needed.
+- **Embedding search** (optional): Semantic search using Azure OpenAI `text-embedding-3-small`. Understands meaning — e.g., searching "name" finds "Scott lives in San Clemente". Requires `AZURE_OPENAI_ENDPOINT` + `AZURE_OPENAI_API_KEY` and the embedding model deployed. Auto-detected; falls back to keyword if not configured.
+
+**System prompt injection (two modes):**
+- **≤10 memories or no embeddings**: All memories injected into system prompt every time
+- **>10 memories with embeddings**: Only the top-5 most relevant memories (by cosine similarity to the user's message) are injected, saving tokens
+
 **Storage:**
-- File: `~/.foundry-tui/memories.md`
-- Format: Human-readable Markdown, one `##` section per memory with metadata
-- Example:
-  ```markdown
-  # Foundry TUI Memories
-
-  ## mem_1709654321
-  - **Saved**: 2026-03-05 12:05:21
-  - **Source**: gpt-4o
-
-  User prefers Python and uses uv as their package manager.
-
-  ## mem_1709654400
-  - **Saved**: 2026-03-05 12:06:40
-  - **Source**: deepseek-v3.2
-
-  User's name is Sebastiaan. They work in developer tools.
-  ```
+- File: `~/.foundry-tui/memories.md` (human-readable Markdown, one `##` section per memory)
+- Embeddings sidecar: `~/.foundry-tui/memory_embeddings.json` (auto-generated when embedding model available)
 
 **`/memory` command:**
 - `/memory` — list all memories with IDs and previews
-- `/memory search <query>` — search memories by keyword
+- `/memory search <query>` — search memories by keyword (or embeddings if configured)
 - `/memory delete <id>` — delete a specific memory
-- `/memory clear` — delete all memories (with confirmation)
+- `/memory clear` — delete all memories (with count confirmation)
 
 **Model compatibility (15 of 18 models):**
 - ✅ Tool-capable: GPT-4o/4.1/5/5.1 family, o4-mini, DeepSeek V3.2, Grok 3/4.1, Kimi K2.5, Mistral Small
