@@ -98,21 +98,17 @@ StatusBar {
     color: $text-muted;
 }
 
-/* Scrollbar styling */
-#chat-container::-webkit-scrollbar {
-    width: 8;
-}
 
 /* Model picker - cleaner look */
 ModelPicker > Vertical {
     background: $surface;
-    border: round $primary 50%;
+    border: round $primary;
     padding: 1 2;
 }
 
 /* Conversation picker - cleaner look */
 ConversationPicker > Vertical {
     background: $surface;
-    border: round $primary 50%;
+    border: round $primary;
     padding: 1 2;
 }
