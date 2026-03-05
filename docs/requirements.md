@@ -68,6 +68,44 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 - `/tools` command to list and inspect registered tools
 - Graceful fallback for models without tool support
 
+### 3d. File Creation Tool
+
+Allow models to create files on the user's local filesystem when asked (e.g., "save this
+as a markdown file"). Files are saved to `~/Downloads/` with security sandboxing.
+
+**Parameters:**
+- `filename` (string, required) — Name of the file to create (no path separators allowed)
+- `content` (string, required) — File content to write
+
+**Security Model:**
+
+| Threat | Mitigation |
+|--------|-----------|
+| Path traversal (`../../.ssh/keys`) | Strip all path separators; only bare filenames allowed |
+| Sensitive path writes | Sandboxed to `~/Downloads/` — no other directories permitted |
+| Executable payloads (.exe, .bat, .com) | Block binary executable extensions; scripts (.sh, .py) allowed |
+| Disk filling | 10 MB max file size limit |
+| File overwrite | Auto-suffix with `_1`, `_2`, etc. if file exists |
+| Filename injection | Sanitize: strip control chars, limit to 255 chars |
+
+**Allowed file types:** All text-based files including scripts (.sh, .py, .ps1), documents
+(.md, .txt, .html), data (.json, .csv, .yaml, .xml, .toml), and code files. Only binary
+executables (.exe, .bat, .com, .msi, .dll, .so, .dylib) are blocked.
+
+**UX:**
+- Tool result shows the full path of the created file
+- File path displayed as a clickable link in the TUI (opens in Finder/Explorer)
+- Collapsible tool call widget shows filename and content preview
+
+### 3e. Clickable Links in TUI
+
+URLs in assistant responses and tool results should be clickable in the terminal,
+opening in the user's default browser or file manager.
+
+- Parse URLs from rendered markdown content
+- Use terminal hyperlink escape sequences (OSC 8) where supported
+- Clicking a file path opens in Finder/Explorer; clicking a URL opens in browser
+
 ### 3c. Responses API Migration (Azure OpenAI)
 
 Migrate Azure OpenAI models from the Chat Completions API (`client.chat.completions.create`)

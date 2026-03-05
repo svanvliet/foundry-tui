@@ -923,7 +923,85 @@ Wire RAPI into the main message sending flow.
 
 ---
 
-## Phase 11: Advanced Features (Future)
+## Phase 11: File Creation Tool & Clickable Links
+
+Add a `create_file` tool so models can save files to the user's local filesystem,
+and make URLs/file paths in the TUI clickable.
+
+### Design Decisions
+
+| Decision | Choice |
+|----------|--------|
+| Output directory | `~/Downloads/` (sandboxed, no other paths allowed) |
+| Path traversal | Strip all path separators from filename; bare names only |
+| Duplicate filenames | Auto-suffix `_1`, `_2`, etc. |
+| Blocked extensions | Binary executables only (.exe, .bat, .com, .msi, .dll, .so, .dylib) |
+| Allowed extensions | All text/code/script files (.md, .txt, .py, .sh, .json, etc.) |
+| Max file size | 10 MB |
+| Link handling | OSC 8 terminal hyperlinks + Textual action handler |
+
+---
+
+### 11.1 — File Creation Tool
+
+**File:** `tools/file_create.py` (new)
+
+- [ ] **Create `CreateFileTool` class**
+  - Parameters: `filename` (str), `content` (str)
+  - Sanitize filename: strip path separators (`/`, `\`), `..`, control chars, limit to 255 chars
+  - Block dangerous extensions: `.exe`, `.bat`, `.com`, `.msi`, `.dll`, `.so`, `.dylib`
+  - Enforce 10 MB max content size
+  - Write to `~/Downloads/<filename>`
+  - If file exists: try `name_1.ext`, `name_2.ext`, etc. (up to 100 attempts)
+  - Return: full absolute path of created file + size in bytes
+  - Tool description instructs model: "Creates a text file in the user's Downloads folder"
+
+- [ ] **Register in `tools/__init__.py`**
+  - Always registered (no API key needed)
+  - Available to all tool-capable models
+
+---
+
+### 11.2 — Clickable Links in TUI
+
+**Files:** `ui/chat.py`, `app.py`
+
+Make URLs and file paths in messages clickable.
+
+- [ ] **Add `action_open_link` to FoundryApp**
+  - `action_open_link(url: str)` → calls `webbrowser.open(url)` for http(s) URLs
+  - For `file://` or local paths → calls `subprocess.run(["open", path])` (macOS) or `xdg-open` (Linux)
+
+- [ ] **Enable link rendering in message widgets**
+  - Use Textual's built-in `Markdown` widget (supports clickable links natively) instead of Rich's Markdown
+  - Or: post-process rendered content to wrap URLs with `[@click=app.open_link('url')]url[/]` Rich markup
+  - File paths from `create_file` results should render as clickable links
+
+- [ ] **Handle file:// links in tool results**
+  - When `CreateFileTool` returns a path, format it as a clickable link in the `ToolCallMessage` widget
+  - Clicking opens the file in the default application or reveals in Finder/Explorer
+
+---
+
+### 11.3 — Documentation
+
+- [ ] Update README with `create_file` tool description
+- [ ] Update `/tools` command output to show create_file
+- [ ] Note security model in README (sandboxed to ~/Downloads/)
+
+---
+
+### Implementation Order
+
+```
+11.1 (File Tool) ──→ 11.2 (Clickable Links) ──→ 11.3 (Docs)
+```
+
+11.1 and 11.2 are mostly independent but link rendering benefits from having the file tool to test with.
+
+---
+
+## Phase 12: Advanced Features (Future)
 
 - [ ] Per-model token tracking (cumulative across sessions)
 - [ ] Model provisioning from catalog (in-app)
@@ -936,8 +1014,8 @@ Wire RAPI into the main message sending flow.
 
 ## Current Status
 
-**Phase**: Phase 10 — Responses API Migration ✅
-**Current Task**: None — all phases through 10 complete
+**Phase**: Phase 11 — File Creation Tool & Clickable Links
+**Current Task**: Ready for implementation
 **Blockers**: None
 
 ---
@@ -968,3 +1046,4 @@ Wire RAPI into the main message sending flow.
 | 2026-03-05 | Memory recall | Complete | Switched from system prompt injection to tool-based recall for better accuracy |
 | 2026-03-05 | Phase 10 plan | Complete | Responses API migration for Azure OpenAI models |
 | 2026-03-05 | Phase 10 | Complete | Responses API for Azure OpenAI models with built-in web search and server-side state |
+| 2026-03-05 | Phase 11 plan | Complete | File creation tool with security sandboxing + clickable TUI links |
