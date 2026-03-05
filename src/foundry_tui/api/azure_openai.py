@@ -45,6 +45,7 @@ class AzureOpenAIClient:
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
+            max_retries=0,  # Disable automatic retries - show errors immediately
         )
 
     async def stream_chat(
