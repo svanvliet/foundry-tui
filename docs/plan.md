@@ -444,7 +444,7 @@ Add a slash command for users to manage tools.
 
 ---
 
-## Phase 9: Memory (Persistent User Context)
+## Phase 9: Memory (Persistent User Context) ✅
 
 Add persistent memory so models can remember facts about the user across conversations.
 Three tools (`save_memory`, `recall_memories`, `forget_memory`) auto-registered for all
@@ -561,7 +561,7 @@ Show memory count in status bar.
 
 ---
 
-### 9.6 — Semantic Memory Search (Embeddings)
+### 9.6 — Semantic Memory Search (Embeddings) ✅
 
 Add optional Azure OpenAI embedding-based search for memories. Falls back to keyword
 search when not configured. Also enables smart system prompt injection (top-5 relevant
@@ -584,7 +584,7 @@ memories instead of all) when memory count exceeds 10.
 
 **File:** `api/embeddings.py`
 
-- [ ] **Create EmbeddingClient class**
+- [x] **Create EmbeddingClient class**
   - Uses existing `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` (no new env vars)
   - Deployment name: `text-embedding-3-small` (added to `models-catalog.json` as utility model)
   - `async embed(text: str) -> list[float]` — embed a single text, return 1536-dim vector
@@ -598,7 +598,7 @@ memories instead of all) when memory count exceeds 10.
 
 **File:** `storage/memory.py` (extend existing)
 
-- [ ] **Add embedding sidecar management**
+- [x] **Add embedding sidecar management**
   - Sidecar file: `~/.foundry-tui/memory_embeddings.json`
   - Format: `{ "mem_123": [0.012, -0.034, ...], "mem_456": [...] }`
   - `save_embedding(memory_id: str, embedding: list[float])` — add/update
@@ -613,7 +613,7 @@ memories instead of all) when memory count exceeds 10.
 
 **File:** `storage/memory.py` (extend existing)
 
-- [ ] **Add cosine similarity search**
+- [x] **Add cosine similarity search**
   - `async semantic_search(query: str, top_k: int = 5) -> list[Memory]`
   - Embed the query using `EmbeddingClient`
   - Compute cosine similarity against all stored embeddings
@@ -626,15 +626,15 @@ memories instead of all) when memory count exceeds 10.
 
 **Files:** `tools/memory.py`, `app.py`
 
-- [ ] **Update SaveMemoryTool**
+- [x] **Update SaveMemoryTool**
   - After saving to markdown, embed the content and save to sidecar
   - If embedding fails (model not available), save memory anyway (keyword still works)
 
-- [ ] **Update RecallMemoriesTool**
+- [x] **Update RecallMemoriesTool**
   - If embeddings available: use semantic search (finds "name" → "Scott lives in...")
   - If not available: fall back to current keyword substring search
 
-- [ ] **Update ForgetMemoryTool / clear**
+- [x] **Update ForgetMemoryTool / clear**
   - Delete embedding from sidecar when memory is deleted/cleared
 
 ---
@@ -643,7 +643,7 @@ memories instead of all) when memory count exceeds 10.
 
 **File:** `app.py`
 
-- [ ] **Conditional injection in `_build_system_prompt()`**
+- [x] **Conditional injection in `_build_system_prompt()`**
   - If ≤10 memories OR no embeddings: inject all memories (current behavior)
   - If >10 memories AND embeddings available: embed user's message, inject top-5 most relevant
   - Always include the "use save_memory" instruction regardless of injection mode
@@ -655,13 +655,13 @@ memories instead of all) when memory count exceeds 10.
 
 **Files:** `scripts/setup.sh`, `scripts/setup.ps1`
 
-- [ ] **Auto-deploy text-embedding-3-small**
+- [x] **Auto-deploy text-embedding-3-small**
   - When deploying Azure OpenAI models, automatically include `text-embedding-3-small`
   - No user prompt needed (free to deploy, pay-per-use at $0.02/1M tokens)
   - Add `AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small` to `.env`
   - Teardown: include in model cleanup
 
-- [ ] **Update .env.example**
+- [x] **Update .env.example**
   - Add `AZURE_OPENAI_EMBEDDING_DEPLOYMENT=` entry
 
 ---
@@ -670,7 +670,7 @@ memories instead of all) when memory count exceeds 10.
 
 **File:** `models-catalog.json`
 
-- [ ] **Add embedding model entry**
+- [x] **Add embedding model entry**
   - New category: `"utility"` (not shown in model picker, used internally)
   - Entry: `text-embedding-3-small` with deployment type `azure_openai`
   - Not selectable as a chat model
@@ -702,8 +702,8 @@ memories instead of all) when memory count exceeds 10.
 
 ## Current Status
 
-**Phase**: Phase 9.6 — Semantic Memory Search (Embeddings)
-**Current Task**: Ready for implementation
+**Phase**: Phase 9 — Memory ✅ (including 9.6 Semantic Search)
+**Current Task**: None — all phases through 9 complete
 **Blockers**: None
 
 ---
@@ -730,3 +730,4 @@ memories instead of all) when memory count exceeds 10.
 | 2026-03-05 | Phase 9 plan | Complete | Memory tools design with global markdown storage |
 | 2026-03-05 | Phase 9.1–9.5 | Complete | Memory tools, storage, injection, /memory command, status bar |
 | 2026-03-05 | Phase 9.6 plan | Complete | Semantic memory search via Azure OpenAI embeddings |
+| 2026-03-05 | Phase 9.6 | Complete | Semantic memory search with Azure OpenAI text-embedding-3-small embeddings |

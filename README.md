@@ -1,6 +1,8 @@
 # Foundry TUI
 
-A terminal-based chat application for testing AI models on Microsoft Azure AI Foundry. Inspired by Claude Code's clean interface.
+A polished terminal-based chat application for testing AI models on Microsoft Azure AI Foundry. Features streaming responses, tool calling, persistent memory with semantic search, and 20 color themes — all in a Claude Code-inspired TUI.
+
+![Foundry TUI](docs/assets/screenshot-tui.png)
 
 ## Features
 
@@ -8,6 +10,7 @@ A terminal-based chat application for testing AI models on Microsoft Azure AI Fo
 - **Streaming Responses** - Real-time token streaming with animated status
 - **Model Picker** - Fuzzy search to quickly switch between models
 - **Tool Calling** - Web search via Tavily, extensible tool registry
+- **Memory** - Persistent user context with semantic search (Azure OpenAI embeddings)
 - **20 Color Themes** - Nord default, switch with `/theme` (Dracula, Tokyo Night, Gruvbox, etc.)
 - **Reasoning Display** - `<think>` tokens from reasoning models shown in collapsible widgets
 - **Rate Limit Tracking** - RPM/TPM display, auto-retry on 429 with countdown
@@ -57,7 +60,8 @@ The script will:
 2. Create a resource group
 3. Let you select which models to deploy
 4. Deploy Azure OpenAI and/or Azure AI Services
-5. Automatically configure your `.env` file
+5. Deploy `text-embedding-3-small` for semantic memory search
+6. Automatically configure your `.env` file
 
 ### Configure Azure (Option B: Manual Setup)
 
@@ -75,6 +79,9 @@ The script will:
    # Azure AI Services (for DeepSeek, Grok, Kimi)
    AZURE_AI_ENDPOINT=https://your-region.api.cognitive.microsoft.com/
    AZURE_AI_API_KEY=your-key-here
+
+   # Optional: enables semantic memory search
+   AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
    ```
 
 3. Run the app:
@@ -92,6 +99,10 @@ The script will:
 | `/system [prompt]` | View/set system prompt (`/system clear` to remove) |
 | `/theme [name]` | Switch color theme (20 built-in themes) |
 | `/tools` | List registered tools (`/tools info <name>` for details) |
+| `/memory` | List stored memories |
+| `/memory search <query>` | Search memories |
+| `/memory delete <id>` | Delete a memory |
+| `/memory clear` | Clear all memories |
 | `/load` or `/convs` | Browse and load saved conversations |
 | `/save [title]` | Save conversation with optional title |
 | `/new` or `/n` | Start a new conversation |
@@ -100,6 +111,9 @@ The script will:
 | `/export [file]` | Export conversation to JSON |
 | `/help` or `/h` | Show help |
 | `/quit` or `/q` | Exit |
+
+![Chat interface](docs/assets/screenshot-prompt.png)
+*Chat with streaming responses and tool calling*
 
 ### Keyboard Shortcuts
 
@@ -114,6 +128,9 @@ The script will:
 | `Ctrl+L` | Clear screen |
 
 ### Supported Models
+
+![Model picker](docs/assets/screenshot-models.png)
+*Fuzzy model picker with 18+ models*
 
 **Azure OpenAI:**
 - GPT-4o, GPT-4o Mini
@@ -146,6 +163,7 @@ foundry-tui/
 │   ├── config.py          # Configuration loading
 │   ├── models.py          # Model definitions
 │   ├── api/               # API clients
+│   ├── tools/             # Tool calling (web search, memory)
 │   ├── ui/                # TUI components
 │   └── storage/           # Persistence
 └── docs/
@@ -162,6 +180,7 @@ foundry-tui/
 | `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL | For GPT/o-series |
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | For GPT/o-series |
 | `AZURE_OPENAI_API_VERSION` | API version (default: `2024-12-01-preview`) | No |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Embedding model deployment name (enables semantic memory search) | No |
 | `AZURE_AI_ENDPOINT` | Azure AI Services endpoint | For DeepSeek/Grok/Kimi |
 | `AZURE_AI_API_KEY` | Azure AI Services API key | For DeepSeek/Grok/Kimi |
 | `SERVERLESS_ENDPOINT_*` | Serverless model endpoints | For Mistral |
@@ -190,6 +209,8 @@ Foundry TUI stores data in `~/.foundry-tui/`:
 - `config.json` - User preferences (last model, system prompt, theme, rate limits)
 - `conversations/` - Saved conversations (JSON)
 - `input_history.txt` - Command/prompt history (last 200 entries)
+- `memories.md` - Persistent memory (human-readable Markdown)
+- `memory_embeddings.json` - Embedding vectors for semantic search
 
 Logs are written to `logs/` in the project directory.
 
@@ -233,6 +254,9 @@ The app no longer sends max_tokens by default. If you see this error, make sure 
 
 ### 429 Rate Limit Errors
 Azure S0 tier has hard rate limit caps (e.g., 1K TPM on newer models like GPT-5.1) that override your deployment capacity settings. The app auto-retries with a countdown (up to 3 attempts). Press Escape to cancel the retry or Ctrl+C to quit. Check your actual limits in the Azure portal under your deployment's rate limits tab.
+
+### Memory search not finding results
+If `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` is not set, memory recall uses keyword substring matching. Set this env var and run the setup script to enable semantic search (finds "name" when memory says "Scott lives in San Clemente").
 
 ## License
 
