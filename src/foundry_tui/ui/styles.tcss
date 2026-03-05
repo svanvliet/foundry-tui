@@ -23,27 +23,23 @@ Screen {
 }
 
 .message-user {
-    background: $primary-darken-2;
     border: solid $primary;
     border-title-color: $text;
     border-title-style: bold;
 }
 
 .message-assistant {
-    background: $surface;
     border: solid $secondary;
     border-title-color: $text;
     border-title-style: bold;
 }
 
 .message-error {
-    background: $error 20%;
     border: solid $error;
     color: $error;
 }
 
 .message-system {
-    background: $warning 20%;
     border: solid $warning;
     color: $warning;
 }

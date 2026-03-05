@@ -27,7 +27,6 @@ class StatusBar(Horizontal):
     DEFAULT_CSS = """
     StatusBar {
         height: 1;
-        background: $surface;
         padding: 0 1;
         width: 100%;
     }
