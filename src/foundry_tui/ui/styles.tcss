@@ -1,10 +1,9 @@
-/* Foundry TUI Styles - Modern/Minimal */
+/* Foundry TUI Styles - Claude Code inspired */
 
 Screen {
     layout: grid;
     grid-size: 1;
     grid-rows: 1fr auto auto;
-    background: $background;
 }
 
 /* Chat message area */
@@ -15,23 +14,20 @@ Screen {
 
 #chat-log {
     height: auto;
-    padding: 0 1;
+    padding: 0 2;
 }
 
-/* Messages - clean, no borders */
+/* Messages - invisible containers */
 .message {
     margin: 0 0 1 0;
-    padding: 0 1;
-    background: transparent;
+    padding: 0;
 }
 
 .message-user {
-    /* User messages - subtle blue-ish tint */
     color: $text;
 }
 
 .message-assistant {
-    /* Assistant messages - clean, no background */
     color: $text;
 }
 
@@ -43,52 +39,33 @@ Screen {
     color: $text-muted;
 }
 
-/* Role headers */
-.role-header {
-    margin-bottom: 0;
-    padding: 0;
-}
-
-.role-user {
-    color: #7aa2f7;  /* Soft blue */
-}
-
-.role-assistant {
-    color: #9ece6a;  /* Soft green */
-}
-
-/* Input area - minimal */
+/* Input area - completely invisible */
 #input-container {
     height: auto;
     max-height: 10;
-    padding: 0 1;
-    background: $surface;
+    padding: 0 2;
 }
 
 #message-input {
     height: auto;
-    min-height: 3;
+    min-height: 1;
     max-height: 8;
-    margin: 1 0;
+    margin: 0;
     border: none;
-    background: $background;
-    padding: 1;
+    background: transparent;
+    padding: 0;
 }
 
 #message-input:focus {
     border: none;
-    background: $background;
+    background: transparent;
 }
 
-/* Input prompt indicator */
-.input-prompt {
-    color: #7aa2f7;
-    padding: 0 1;
-}
-
-/* Status bar - already minimal, keep it clean */
+/* Status bar - minimal, blends in */
 StatusBar {
-    background: $surface;
+    height: 1;
+    padding: 0 2;
+    color: $text-muted;
 }
 
 /* Welcome message */
@@ -98,15 +75,14 @@ StatusBar {
     color: $text-muted;
 }
 
-
-/* Model picker - cleaner look */
+/* Model picker */
 ModelPicker > Vertical {
     background: $surface;
     border: round $primary;
     padding: 1 2;
 }
 
-/* Conversation picker - cleaner look */
+/* Conversation picker */
 ConversationPicker > Vertical {
     background: $surface;
     border: round $primary;

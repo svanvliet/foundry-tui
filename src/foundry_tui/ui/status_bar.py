@@ -27,9 +27,9 @@ class StatusBar(Horizontal):
     DEFAULT_CSS = """
     StatusBar {
         height: 1;
-        background: $surface;
-        padding: 0 1;
+        padding: 0 2;
         width: 100%;
+        color: $text-muted;
     }
 
     StatusBar > Static {
@@ -38,15 +38,15 @@ class StatusBar(Horizontal):
     }
 
     StatusBar > #sb-activity {
-        margin-left: 1;
+        margin-left: 2;
     }
 
     StatusBar > #sb-tokens {
-        margin-left: 1;
+        margin-left: 2;
     }
 
     StatusBar > #sb-provider {
-        margin-left: 1;
+        margin-left: 2;
     }
     """
 

@@ -27,11 +27,11 @@ class ChatMessage(Vertical):
 
     ChatMessage > .role-indicator {
         height: 1;
-        padding: 0 1;
+        padding: 0;
     }
 
     ChatMessage > .message-content {
-        padding: 0 1 0 3;
+        padding: 0 0 0 2;
     }
     """
 
@@ -79,11 +79,11 @@ class StreamingMessage(Vertical):
 
     StreamingMessage > .role-indicator {
         height: 1;
-        padding: 0 1;
+        padding: 0;
     }
 
     StreamingMessage > .message-content {
-        padding: 0 1 0 3;
+        padding: 0 0 0 2;
     }
     """
 

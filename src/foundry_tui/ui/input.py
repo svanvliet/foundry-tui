@@ -47,15 +47,13 @@ class InputContainer(Horizontal):
     InputContainer {
         height: auto;
         max-height: 10;
-        padding: 0 1;
-        background: $surface;
+        padding: 0;
     }
 
     InputContainer > .input-prompt {
-        width: 2;
-        height: 100%;
-        content-align: left middle;
-        padding: 1 0 0 0;
+        width: 3;
+        height: 1;
+        padding: 0;
     }
     """
 
@@ -68,5 +66,5 @@ class InputContainer(Horizontal):
         """Compose the input container."""
         from textual.widgets import Static
 
-        yield Static("[#7aa2f7]❯[/#7aa2f7]", classes="input-prompt", markup=True)
+        yield Static("[#7aa2f7]❯[/#7aa2f7] ", classes="input-prompt", markup=True)
         yield MessageInput()
