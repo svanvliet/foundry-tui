@@ -5,9 +5,12 @@ Each model has its own endpoint and API key.
 """
 
 import json
+import logging
 from collections.abc import AsyncGenerator
 
 import httpx
+
+logger = logging.getLogger("foundry_tui")
 
 from foundry_tui.api.azure_openai import (
     Message,
@@ -44,7 +47,6 @@ class ServerlessClient:
         payload: dict = {
             "messages": [m.to_api_dict() for m in messages],
             "stream": True,
-            "stream_options": {"include_usage": True},
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens
@@ -57,6 +59,9 @@ class ServerlessClient:
         }
 
         async with self.client.stream("POST", url, json=payload, headers=headers) as response:
+            if response.status_code >= 400:
+                await response.aread()
+                logger.error("Serverless API error %s: %s", response.status_code, response.text)
             response.raise_for_status()
 
             async for line in response.aiter_lines():
@@ -138,6 +143,8 @@ class ServerlessClient:
         }
 
         response = await self.client.post(url, json=payload, headers=headers)
+        if response.status_code >= 400:
+            logger.error("Serverless API error %s: %s", response.status_code, response.text)
         response.raise_for_status()
 
         data = response.json()
