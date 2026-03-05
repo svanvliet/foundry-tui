@@ -109,6 +109,10 @@ class FoundryApp(App):
         # Set initial status
         self._update_status_bar_model()
 
+        # Populate command menu with model names for /models completion
+        cmd_menu = self.query_one(CommandMenu)
+        cmd_menu.set_model_names([m.id for m in self.config.catalog.models])
+
         # Show welcome message
         chat_log = self.query_one(ChatLog)
         system_info = ""
@@ -163,7 +167,10 @@ class FoundryApp(App):
         elif cmd in ("/new", "/n"):
             await self._new_conversation()
         elif cmd in ("/models", "/m", "/model"):
-            await self._show_model_picker()
+            if args:
+                await self._switch_model_by_name(args)
+            else:
+                await self._show_model_picker()
         elif cmd in ("/copy",):
             await self._copy_last_response()
         elif cmd in ("/export",):
@@ -223,6 +230,32 @@ class FoundryApp(App):
         """Show the model picker."""
         picker = ModelPicker(self.config.catalog, self.current_model)
         await self.push_screen(picker)
+
+    async def _switch_model_by_name(self, name: str) -> None:
+        """Switch to a model by ID or name."""
+        name = name.strip().lower()
+        model = self.config.catalog.get_model(name)
+        if not model:
+            # Fuzzy match on display name
+            for m in self.config.catalog.models:
+                if name in m.name.lower() or name in m.id.lower():
+                    model = m
+                    break
+        if not model:
+            await self._add_message("error", f"Unknown model: {name}")
+            return
+
+        old_model = self.current_model
+        self.current_model = model
+        set_last_model_id(model.id)
+        self._update_status_bar_model()
+
+        if old_model.id != model.id:
+            log_event("Model changed", old=old_model.id, new=model.id)
+            await self._add_message(
+                "system",
+                f"Switched to [bold]{model.name}[/bold] ({model.provider})",
+            )
 
     async def _copy_last_response(self) -> None:
         """Copy the last assistant response to clipboard."""

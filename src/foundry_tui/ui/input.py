@@ -7,20 +7,27 @@ from textual.widgets.option_list import Option
 from textual.message import Message
 from textual.events import Key
 
-# Slash commands: (command, description)
-SLASH_COMMANDS: list[tuple[str, str]] = [
-    ("/models", "Select a different model"),
-    ("/system", "View/set system prompt"),
-    ("/tools", "List registered tools"),
-    ("/load", "Browse saved conversations"),
-    ("/save", "Save current conversation"),
-    ("/new", "Start a new conversation"),
-    ("/clear", "Clear chat history"),
-    ("/copy", "Copy last response to clipboard"),
-    ("/export", "Export conversation to JSON"),
-    ("/help", "Show help"),
-    ("/quit", "Exit the application"),
+# Slash commands: (command, description, accepts_args)
+SLASH_COMMANDS: list[tuple[str, str, bool]] = [
+    ("/models", "Select a different model", True),
+    ("/system", "View/set system prompt", True),
+    ("/tools", "List registered tools", True),
+    ("/load", "Browse saved conversations", False),
+    ("/save", "Save current conversation", True),
+    ("/new", "Start a new conversation", False),
+    ("/clear", "Clear chat history", False),
+    ("/copy", "Copy last response to clipboard", False),
+    ("/export", "Export conversation to JSON", True),
+    ("/help", "Show help", False),
+    ("/quit", "Exit the application", False),
 ]
+
+# Commands that accept args → map to subcommand completions
+# Additional dynamic completions (e.g. model names) are injected at runtime
+STATIC_ARG_COMPLETIONS: dict[str, list[tuple[str, str]]] = {
+    "/system": [("clear", "Remove system prompt")],
+    "/tools": [("info", "Show tool details")],
+}
 
 
 class CommandMenu(OptionList):
@@ -53,15 +60,23 @@ class CommandMenu(OptionList):
     def __init__(self) -> None:
         super().__init__()
         self._all_commands = SLASH_COMMANDS
+        self._mode: str = "command"  # "command" or "arg"
+        self._current_cmd: str = ""
+        self._model_names: list[str] = []
 
-    def show_filtered(self, prefix: str) -> None:
-        """Show commands matching prefix, or all if just '/'."""
+    def set_model_names(self, names: list[str]) -> None:
+        """Set available model names for /models completion."""
+        self._model_names = names
+
+    def show_commands(self, prefix: str) -> None:
+        """Show commands matching prefix."""
+        self._mode = "command"
         self.clear_options()
 
         search = prefix.lstrip("/").lower()
         matches = [
             (cmd, desc)
-            for cmd, desc in self._all_commands
+            for cmd, desc, _ in self._all_commands
             if not search or cmd.lstrip("/").startswith(search)
         ]
 
@@ -71,6 +86,41 @@ class CommandMenu(OptionList):
 
         for cmd, desc in matches:
             self.add_option(Option(f"{cmd}  [dim]{desc}[/dim]", id=cmd))
+
+        self.display = True
+        self.highlighted = 0
+
+    def show_args(self, cmd: str, arg_prefix: str) -> None:
+        """Show argument completions for a command."""
+        self._mode = "arg"
+        self._current_cmd = cmd
+        self.clear_options()
+
+        candidates: list[tuple[str, str]] = []
+
+        if cmd == "/models":
+            # Dynamic model name completions
+            search = arg_prefix.lower()
+            candidates = [
+                (name, "")
+                for name in self._model_names
+                if not search or name.lower().startswith(search)
+            ]
+        elif cmd in STATIC_ARG_COMPLETIONS:
+            search = arg_prefix.lower()
+            candidates = [
+                (arg, desc)
+                for arg, desc in STATIC_ARG_COMPLETIONS[cmd]
+                if not search or arg.lower().startswith(search)
+            ]
+
+        if not candidates:
+            self.display = False
+            return
+
+        for arg, desc in candidates:
+            label = f"{arg}  [dim]{desc}[/dim]" if desc else arg
+            self.add_option(Option(label, id=arg))
 
         self.display = True
         self.highlighted = 0
@@ -126,7 +176,7 @@ class MessageInput(TextArea):
             elif event.key == "tab":
                 event.stop()
                 event.prevent_default()
-                self._accept_completion(menu)
+                self._accept_completion(menu, submit=False)
                 return
             elif event.key == "escape":
                 event.stop()
@@ -136,7 +186,7 @@ class MessageInput(TextArea):
             elif event.key == "enter":
                 event.stop()
                 event.prevent_default()
-                self._accept_completion(menu)
+                self._accept_completion(menu, submit=True)
                 return
 
         if event.key == "enter":
@@ -148,16 +198,51 @@ class MessageInput(TextArea):
             self._submit()
         # shift+enter, ctrl+enter etc. will pass through and add newlines
 
-    def _accept_completion(self, menu: CommandMenu) -> None:
-        """Accept the currently highlighted completion."""
+    def _accept_completion(self, menu: CommandMenu, submit: bool) -> None:
+        """Accept the currently highlighted completion.
+
+        submit=True: fill in and submit immediately (Enter)
+        submit=False: fill in and keep cursor for further typing (Tab)
+        """
         highlighted = menu.highlighted
-        if highlighted is not None:
-            option = menu.get_option_at_index(highlighted)
-            cmd = option.id
-            # Replace the text with the completed command
-            self.clear()
-            self.insert(f"{cmd} ")
-        menu.hide()
+        if highlighted is None:
+            menu.hide()
+            if submit:
+                self._submit()
+            return
+
+        option = menu.get_option_at_index(highlighted)
+        value = option.id
+
+        if menu._mode == "command":
+            # Check if this command accepts args
+            accepts_args = any(
+                a for cmd, _, a in SLASH_COMMANDS if cmd == value
+            )
+
+            if submit:
+                # Enter: submit the command directly
+                self.clear()
+                self.insert(value)
+                menu.hide()
+                self._submit()
+            else:
+                # Tab: fill in command, keep typing for args
+                self.clear()
+                self.insert(f"{value} ")
+                menu.hide()
+        else:
+            # Arg mode — fill in the arg
+            cmd = menu._current_cmd
+            if submit:
+                self.clear()
+                self.insert(f"{cmd} {value}")
+                menu.hide()
+                self._submit()
+            else:
+                self.clear()
+                self.insert(f"{cmd} {value} ")
+                menu.hide()
 
     async def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Update command menu as text changes."""
@@ -167,9 +252,25 @@ class MessageInput(TextArea):
 
         text = self.text.strip()
 
-        # Show menu only when text starts with / and is a single word (no space yet)
-        if text.startswith("/") and " " not in text:
-            menu.show_filtered(text)
+        if not text.startswith("/"):
+            menu.hide()
+            return
+
+        parts = text.split(maxsplit=1)
+        cmd = parts[0].lower()
+
+        if len(parts) == 1 and " " not in self.text:
+            # Still typing the command name — show command completions
+            menu.show_commands(text)
+        elif len(parts) >= 1 and " " in self.text:
+            # Command is complete, show arg completions
+            arg_prefix = parts[1] if len(parts) > 1 else ""
+            # Only show arg menu for commands that support it
+            known_cmd = any(c for c, _, _ in SLASH_COMMANDS if c == cmd)
+            if known_cmd:
+                menu.show_args(cmd, arg_prefix)
+            else:
+                menu.hide()
         else:
             menu.hide()
 
