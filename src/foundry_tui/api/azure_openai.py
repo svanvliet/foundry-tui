@@ -1,9 +1,13 @@
 """Azure OpenAI API client with streaming support."""
 
+import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 
+import httpx
 from openai import AsyncAzureOpenAI
+
+from foundry_tui.storage.logger import get_logger
 
 
 @dataclass
@@ -98,12 +102,82 @@ class AzureOpenAIClient:
         api_version: str,
     ):
         """Initialize the client."""
+        # Create httpx client with request/response logging hooks
+        http_client = httpx.AsyncClient(
+            event_hooks={
+                "request": [self._log_http_request],
+                "response": [self._log_http_response],
+            }
+        )
         self.client = AsyncAzureOpenAI(
             azure_endpoint=endpoint,
             api_key=api_key,
             api_version=api_version,
             max_retries=0,  # Disable automatic retries - show errors immediately
+            http_client=http_client,
         )
+
+    @staticmethod
+    async def _log_http_request(request: httpx.Request) -> None:
+        """Log outgoing HTTP request details."""
+        logger = get_logger()
+        body_bytes = len(request.content) if request.content else 0
+        logger.info(f"HTTP REQUEST: {request.method} {request.url}")
+        logger.info(f"  Content-Length: {body_bytes:,} bytes")
+
+        if request.content and body_bytes > 0:
+            try:
+                body = json.loads(request.content)
+                # Log message count and sizes
+                messages = body.get("messages", [])
+                logger.info(f"  Messages: {len(messages)}")
+                for i, msg in enumerate(messages):
+                    role = msg.get("role", "?")
+                    content = msg.get("content") or ""
+                    content_len = len(content) if isinstance(content, str) else len(json.dumps(content))
+                    tc_info = ""
+                    if msg.get("tool_calls"):
+                        tc_info = f" | tool_calls={len(msg['tool_calls'])}"
+                    logger.info(f"    [{i}] role={role} | {content_len} chars{tc_info}")
+
+                # Log tool definitions size
+                tools = body.get("tools", [])
+                if tools:
+                    tools_json = json.dumps(tools)
+                    logger.info(f"  Tool definitions: {len(tools)} tools, {len(tools_json):,} chars")
+
+                # Log other params
+                params = {k: v for k, v in body.items() if k not in ("messages", "tools")}
+                logger.info(f"  Params: {params}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                logger.info(f"  Body: (non-JSON, {body_bytes} bytes)")
+
+    @staticmethod
+    async def _log_http_response(response: httpx.Response) -> None:
+        """Log HTTP response status and rate limit headers."""
+        logger = get_logger()
+        # Extract rate-limit headers
+        rl_remaining_requests = response.headers.get("x-ratelimit-remaining-requests", "?")
+        rl_remaining_tokens = response.headers.get("x-ratelimit-remaining-tokens", "?")
+        rl_limit_requests = response.headers.get("x-ratelimit-limit-requests", "?")
+        rl_limit_tokens = response.headers.get("x-ratelimit-limit-tokens", "?")
+        retry_after = response.headers.get("retry-after-ms") or response.headers.get("retry-after", "")
+
+        logger.info(
+            f"HTTP RESPONSE: {response.status_code} | "
+            f"RPM: {rl_remaining_requests}/{rl_limit_requests} remaining | "
+            f"TPM: {rl_remaining_tokens}/{rl_limit_tokens} remaining"
+        )
+        if retry_after:
+            logger.info(f"  Retry-After: {retry_after}")
+
+        # For error responses, log the body
+        if response.status_code >= 400:
+            try:
+                await response.aread()
+                logger.error(f"  Error response body: {response.text[:1000]}")
+            except Exception:
+                logger.error(f"  Error response: (could not read body)")
 
     async def stream_chat(
         self,
