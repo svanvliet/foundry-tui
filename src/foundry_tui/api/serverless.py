@@ -72,10 +72,12 @@ class ServerlessClient:
                         chunk_usage: TokenUsage | None = None
                         if chunk.get("usage"):
                             u = chunk["usage"]
+                            ptd = u.get("prompt_tokens_details") or {}
                             chunk_usage = TokenUsage(
                                 prompt_tokens=u.get("prompt_tokens", 0),
                                 completion_tokens=u.get("completion_tokens", 0),
                                 total_tokens=u.get("total_tokens", 0),
+                                cached_tokens=ptd.get("cached_tokens", 0) or 0,
                             )
 
                         if chunk.get("choices"):
@@ -159,10 +161,13 @@ class ServerlessClient:
 
         usage = None
         if "usage" in data:
+            u = data["usage"]
+            ptd = u.get("prompt_tokens_details") or {}
             usage = TokenUsage(
-                prompt_tokens=data["usage"]["prompt_tokens"],
-                completion_tokens=data["usage"]["completion_tokens"],
-                total_tokens=data["usage"]["total_tokens"],
+                prompt_tokens=u["prompt_tokens"],
+                completion_tokens=u["completion_tokens"],
+                total_tokens=u["total_tokens"],
+                cached_tokens=ptd.get("cached_tokens", 0) or 0,
             )
 
         return content, usage, tool_calls

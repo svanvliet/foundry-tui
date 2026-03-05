@@ -95,6 +95,7 @@ def log_token_usage(
     prompt_tokens: int,
     completion_tokens: int,
     total_tokens: int,
+    cached_tokens: int = 0,
     message_breakdown: dict | None = None,
 ) -> None:
     """Log detailed token usage for an API call.
@@ -104,6 +105,7 @@ def log_token_usage(
         prompt_tokens: Tokens sent (input)
         completion_tokens: Tokens received (output)
         total_tokens: Total tokens
+        cached_tokens: Tokens served from prompt cache (reduced cost)
         message_breakdown: Optional dict with role-based token estimates
             e.g. {"system": 150, "history": 2400, "tools": 300, "user": 45}
     """
@@ -112,6 +114,11 @@ def log_token_usage(
     logger.info(f"  Tokens IN  (prompt):     {prompt_tokens:,}")
     logger.info(f"  Tokens OUT (completion): {completion_tokens:,}")
     logger.info(f"  Tokens TOTAL:            {total_tokens:,}")
+    if cached_tokens > 0:
+        pct = (cached_tokens / prompt_tokens * 100) if prompt_tokens > 0 else 0
+        logger.info(f"  Tokens CACHED:           {cached_tokens:,} ({pct:.0f}% of input)")
+    else:
+        logger.info(f"  Tokens CACHED:           0 (no cache hit)")
     if message_breakdown:
         parts = ", ".join(f"{k}={v:,}" for k, v in message_breakdown.items())
         logger.info(f"  Input breakdown: {parts}")

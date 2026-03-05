@@ -51,6 +51,7 @@ class TokenUsage:
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
+    cached_tokens: int = 0
 
 
 @dataclass
@@ -138,10 +139,14 @@ class AzureOpenAIClient:
             # Final usage-only chunk (no choices) when stream_options.include_usage is set
             chunk_usage: TokenUsage | None = None
             if hasattr(chunk, "usage") and chunk.usage:
+                cached = 0
+                if hasattr(chunk.usage, "prompt_tokens_details") and chunk.usage.prompt_tokens_details:
+                    cached = getattr(chunk.usage.prompt_tokens_details, "cached_tokens", 0) or 0
                 chunk_usage = TokenUsage(
                     prompt_tokens=chunk.usage.prompt_tokens or 0,
                     completion_tokens=chunk.usage.completion_tokens or 0,
                     total_tokens=chunk.usage.total_tokens or 0,
+                    cached_tokens=cached,
                 )
 
             if chunk.choices and len(chunk.choices) > 0:
@@ -223,10 +228,14 @@ class AzureOpenAIClient:
 
         usage = None
         if response.usage:
+            cached = 0
+            if hasattr(response.usage, "prompt_tokens_details") and response.usage.prompt_tokens_details:
+                cached = getattr(response.usage.prompt_tokens_details, "cached_tokens", 0) or 0
             usage = TokenUsage(
                 prompt_tokens=response.usage.prompt_tokens,
                 completion_tokens=response.usage.completion_tokens,
                 total_tokens=response.usage.total_tokens,
+                cached_tokens=cached,
             )
 
         return content, usage, tool_calls

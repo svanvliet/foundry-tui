@@ -838,10 +838,12 @@ class FoundryApp(App):
                 self.messages.append(Message(role="assistant", content=full_response))
 
                 # Token tracking: use real usage if available, estimate otherwise
+                cached_tokens = 0
                 if stream_usage:
                     prompt_tokens = stream_usage.prompt_tokens
                     completion_tokens = stream_usage.completion_tokens
                     total = stream_usage.total_tokens
+                    cached_tokens = stream_usage.cached_tokens
                 else:
                     prompt_tokens = len(text) // 4
                     completion_tokens = len(full_response) // 4
@@ -867,6 +869,7 @@ class FoundryApp(App):
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                     total_tokens=total,
+                    cached_tokens=cached_tokens,
                     message_breakdown=breakdown,
                 )
 
@@ -876,6 +879,7 @@ class FoundryApp(App):
                     response_len=len(full_response),
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
+                    cached_tokens=cached_tokens,
                     total_tokens=total,
                     source="actual" if stream_usage else "estimated",
                 )
