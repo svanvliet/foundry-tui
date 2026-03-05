@@ -22,6 +22,7 @@ from foundry_tui.storage.conversations import (
 )
 from foundry_tui.storage.persistence import (
     get_last_model_id,
+    get_model_rate_limits,
     get_system_prompt,
     set_last_model_id,
     set_system_prompt,
@@ -100,6 +101,14 @@ class FoundryApp(App):
             provider=self.current_model.provider,
         )
         status_bar.warning_threshold = self.config.settings.cost_warning_threshold
+        # Update RPM limit from persisted config or catalog defaults
+        limits = get_model_rate_limits(self.current_model.id)
+        if limits:
+            status_bar.set_rpm_limit(limits["rpm"])
+        elif self.current_model.rate_limits:
+            status_bar.set_rpm_limit(self.current_model.rate_limits.rpm_per_unit * 1)
+        else:
+            status_bar.set_rpm_limit(0)
         # Update tool count based on model capabilities
         if self.current_model.capabilities.tools and not self.tool_registry.is_empty():
             status_bar.set_tool_count(len(self.tool_registry.tool_names))
@@ -207,6 +216,7 @@ class FoundryApp(App):
         status_bar._prompt_tokens = 0
         status_bar._completion_tokens = 0
         status_bar._refresh_tokens()
+        status_bar.reset_request_count()
 
         await self._add_message("system", "Chat cleared.")
 
@@ -232,6 +242,7 @@ class FoundryApp(App):
         status_bar._prompt_tokens = 0
         status_bar._completion_tokens = 0
         status_bar._refresh_tokens()
+        status_bar.reset_request_count()
 
         await self._add_message(
             "system",
@@ -726,6 +737,7 @@ class FoundryApp(App):
                     [m.to_api_dict() for m in api_messages],
                     tool_defs=tool_defs,
                 )
+                status_bar.increment_request_count()
 
                 # Start streaming message
                 streaming_msg = await self._start_streaming_message()

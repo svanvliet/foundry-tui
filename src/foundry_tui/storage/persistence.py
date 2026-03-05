@@ -49,6 +49,28 @@ def set_last_model_id(model_id: str) -> None:
     save_user_config(config)
 
 
+def get_model_rate_limits(model_id: str) -> dict | None:
+    """Get rate limits for a model (rpm, tpm, capacity)."""
+    config = load_user_config()
+    return config.get("rate_limits", {}).get(model_id)
+
+
+def set_model_rate_limits(model_id: str, rpm: int, tpm: int, capacity: int) -> None:
+    """Save rate limits for a model."""
+    config = load_user_config()
+    if "rate_limits" not in config:
+        config["rate_limits"] = {}
+    config["rate_limits"][model_id] = {"rpm": rpm, "tpm": tpm, "capacity": capacity}
+    save_user_config(config)
+
+
+def set_all_rate_limits(limits: dict[str, dict]) -> None:
+    """Save rate limits for all models at once."""
+    config = load_user_config()
+    config["rate_limits"] = limits
+    save_user_config(config)
+
+
 def get_system_prompt() -> str | None:
     """Get the current system prompt."""
     config = load_user_config()

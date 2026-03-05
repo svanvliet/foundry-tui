@@ -44,6 +44,10 @@ class StatusBar(Horizontal):
         margin-left: 1;
     }
 
+    StatusBar > #sb-rpm {
+        margin-left: 1;
+    }
+
     StatusBar > #sb-provider {
         margin-left: 1;
     }
@@ -62,6 +66,8 @@ class StatusBar(Horizontal):
         self._completion_tokens = 0
         self._warning_threshold = 10000
         self._tool_count = 0
+        self._rpm_limit: int = 0
+        self._request_count: int = 0
         self._mounted = False
 
     def compose(self) -> ComposeResult:
@@ -69,6 +75,7 @@ class StatusBar(Horizontal):
         yield Static("[cyan]●[/cyan] No model", id="sb-model")
         yield Static("│ [green]✓[/green] Ready", id="sb-activity")
         yield Static("│ Session: 0 tokens", id="sb-tokens")
+        yield Static("", id="sb-rpm")
         yield Static("", id="sb-tools")
         yield Static("", id="sb-provider")
 
@@ -92,6 +99,7 @@ class StatusBar(Horizontal):
         self._refresh_model()
         self._refresh_activity()
         self._refresh_tokens()
+        self._refresh_rpm()
         self._refresh_tools()
         self._refresh_provider()
 
@@ -147,6 +155,25 @@ class StatusBar(Horizontal):
         prompt = f"{self._prompt_tokens:,}"
         completion = f"{self._completion_tokens:,}"
         widget.update(f"│ Tokens: [{color}]{total}[/{color}] [dim](↑{prompt} ↓{completion})[/dim]")
+
+    def _refresh_rpm(self) -> None:
+        """Refresh RPM / request count display."""
+        if not self._mounted:
+            return
+        widget = self.query_one("#sb-rpm", Static)
+        if self._rpm_limit <= 0:
+            widget.update("")
+            return
+
+        ratio = self._request_count / self._rpm_limit
+        if ratio < 0.5:
+            color = "green"
+        elif ratio < 0.8:
+            color = "yellow"
+        else:
+            color = "red"
+
+        widget.update(f"│ RPM: [{color}]{self._request_count}[/{color}][dim]/{self._rpm_limit}[/dim]")
 
     def _refresh_provider(self) -> None:
         """Refresh provider display."""
@@ -236,6 +263,21 @@ class StatusBar(Horizontal):
         widget = self.query_one("#sb-activity", Static)
         spinner = SPINNER_FRAMES[self._spinner_frame]
         widget.update(f"│ [yellow]{spinner}[/yellow] {text}")
+
+    def set_rpm_limit(self, limit: int) -> None:
+        """Set the RPM limit for the current model."""
+        self._rpm_limit = limit
+        self._refresh_rpm()
+
+    def increment_request_count(self) -> None:
+        """Increment the request counter and refresh display."""
+        self._request_count += 1
+        self._refresh_rpm()
+
+    def reset_request_count(self) -> None:
+        """Reset the request counter."""
+        self._request_count = 0
+        self._refresh_rpm()
 
     def set_tool_count(self, count: int) -> None:
         """Set the number of active tools."""

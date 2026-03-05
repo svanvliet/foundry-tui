@@ -33,7 +33,11 @@
         "vision": true
       },
       "context_window": 128000,
-      "max_output_tokens": 16384
+      "max_output_tokens": 16384,
+      "rate_limits": {
+        "rpm_per_unit": 6,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-4o-mini",
@@ -50,7 +54,11 @@
         "vision": true
       },
       "context_window": 128000,
-      "max_output_tokens": 16384
+      "max_output_tokens": 16384,
+      "rate_limits": {
+        "rpm_per_unit": 10,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-4.1",
@@ -67,7 +75,11 @@
         "vision": true
       },
       "context_window": 1047576,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-4.1-mini",
@@ -84,7 +96,11 @@
         "vision": true
       },
       "context_window": 1047576,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-4.1-nano",
@@ -101,7 +117,11 @@
         "vision": false
       },
       "context_window": 1047576,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-5",
@@ -118,7 +138,11 @@
         "vision": true
       },
       "context_window": 256000,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-5-mini",
@@ -135,7 +159,11 @@
         "vision": true
       },
       "context_window": 256000,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-5-nano",
@@ -152,7 +180,11 @@
         "vision": false
       },
       "context_window": 256000,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "gpt-5.1",
@@ -169,7 +201,11 @@
         "vision": true
       },
       "context_window": 256000,
-      "max_output_tokens": 65536
+      "max_output_tokens": 65536,
+      "rate_limits": {
+        "rpm_per_unit": 10,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "o1",
@@ -186,7 +222,11 @@
         "vision": true
       },
       "context_window": 200000,
-      "max_output_tokens": 100000
+      "max_output_tokens": 100000,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 6000
+      }
     },
     {
       "id": "o3-mini",
@@ -203,7 +243,11 @@
         "vision": false
       },
       "context_window": 200000,
-      "max_output_tokens": 100000
+      "max_output_tokens": 100000,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 10000
+      }
     },
     {
       "id": "o4-mini",
@@ -220,7 +264,11 @@
         "vision": true
       },
       "context_window": 200000,
-      "max_output_tokens": 100000
+      "max_output_tokens": 100000,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "deepseek-r1",

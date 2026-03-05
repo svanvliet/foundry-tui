@@ -21,6 +21,13 @@ class ModelCategory(str, Enum):
     REASONING = "reasoning"
 
 
+class RateLimits(BaseModel):
+    """Rate limit ratios per capacity unit."""
+
+    rpm_per_unit: int = 1
+    tpm_per_unit: int = 1000
+
+
 class ModelCapabilities(BaseModel):
     """Model capabilities."""
 
@@ -62,6 +69,7 @@ class Model(BaseModel):
     capabilities: ModelCapabilities
     context_window: int
     max_output_tokens: int
+    rate_limits: RateLimits | None = None
 
     @property
     def deployment_type(self) -> DeploymentType:
