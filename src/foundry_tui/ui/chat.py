@@ -127,6 +127,45 @@ class ToolCallMessage(Collapsible):
         body_widget.update(self._build_body())
 
 
+class ThinkingMessage(Collapsible):
+    """Collapsible widget showing a model's reasoning/thinking tokens."""
+
+    def __init__(self, **kwargs):
+        """Initialize the thinking display."""
+        self._content = ""
+        self._finalized = False
+        super().__init__(
+            Static("⏳ Thinking...", markup=True),
+            title="💭 Thinking...",
+            collapsed=True,
+            **kwargs,
+        )
+        self.add_class("thinking-message")
+
+    def append(self, text: str) -> None:
+        """Append thinking content."""
+        self._content += text
+
+    def flush(self) -> None:
+        """Flush pending content to the display."""
+        if self._content and not self._finalized:
+            # Show preview in title
+            preview = self._content.replace("\n", " ").strip()
+            if len(preview) > 60:
+                preview = preview[:57] + "..."
+            self.title = f"💭 {preview}" if preview else "💭 Thinking..."
+            self.query_one(Static).update(self._content)
+
+    def finalize(self) -> None:
+        """Finalize the thinking block."""
+        self._finalized = True
+        preview = self._content.replace("\n", " ").strip()
+        if len(preview) > 60:
+            preview = preview[:57] + "..."
+        self.title = f"💭 {preview}" if preview else "💭 (empty reasoning)"
+        self.query_one(Static).update(self._content or "(no reasoning content)")
+
+
 class StreamingMessage(Static):
     """A message that can be updated with streaming content."""
 

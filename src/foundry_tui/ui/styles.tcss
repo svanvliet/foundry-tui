@@ -121,3 +121,26 @@ ScrollableContainer {
 .tool-call-error CollapsibleTitle {
     color: $error;
 }
+
+.thinking-message {
+    margin-bottom: 1;
+    padding: 0 1;
+    border-left: outer $warning;
+    background: ansi_default;
+}
+
+.thinking-message CollapsibleTitle {
+    color: $warning;
+    background: ansi_default;
+    padding: 0 1;
+}
+
+.thinking-message Contents {
+    padding: 0 2;
+    background: ansi_default;
+}
+
+.thinking-message Contents Static {
+    background: ansi_default;
+    color: $text-muted;
+}

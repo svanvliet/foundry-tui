@@ -30,7 +30,7 @@ from foundry_tui.storage.persistence import (
 )
 from foundry_tui.tools import create_default_registry
 from foundry_tui.tools.registry import ToolRegistry
-from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage, ToolCallMessage
+from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage, ThinkingMessage, ToolCallMessage
 from foundry_tui.ui.input import CommandMenu, InputContainer, MessageInput
 from foundry_tui.ui.conversation_picker import ConversationPicker
 from foundry_tui.ui.model_picker import ModelPicker
@@ -757,6 +757,11 @@ class FoundryApp(App):
                 stream_usage = None  # Will be set from the final chunk
                 rate_limit_retries = 0
 
+                # Thinking tag parser state
+                thinking_msg: ThinkingMessage | None = None
+                in_thinking = False
+                thinking_buffer = ""  # Buffer to detect <think> and </think> tags
+
                 while True:
                     try:
                         async for chunk in self.client.stream_chat(
@@ -773,10 +778,65 @@ class FoundryApp(App):
                                     first_chunk = False
 
                                 full_response += chunk.content
-                                streaming_msg.append(chunk.content)
-                                chunk_count += 1
 
+                                # Parse <think>...</think> tags from streaming content
+                                text_to_process = thinking_buffer + chunk.content
+                                thinking_buffer = ""
+
+                                while text_to_process:
+                                    if in_thinking:
+                                        # Look for </think> closing tag
+                                        close_idx = text_to_process.find("</think>")
+                                        if close_idx != -1:
+                                            # Emit thinking content up to the tag
+                                            if thinking_msg and close_idx > 0:
+                                                thinking_msg.append(text_to_process[:close_idx])
+                                            if thinking_msg:
+                                                thinking_msg.finalize()
+                                            in_thinking = False
+                                            text_to_process = text_to_process[close_idx + 8:]
+                                        elif text_to_process.endswith("<") or text_to_process.endswith("</") or text_to_process.endswith("</t") or text_to_process.endswith("</th") or text_to_process.endswith("</thi") or text_to_process.endswith("</thin") or text_to_process.endswith("</think"):
+                                            # Might be a partial </think> tag — buffer it
+                                            partial_start = max(text_to_process.rfind("<"), 0)
+                                            if thinking_msg and partial_start > 0:
+                                                thinking_msg.append(text_to_process[:partial_start])
+                                            thinking_buffer = text_to_process[partial_start:]
+                                            text_to_process = ""
+                                        else:
+                                            # All thinking content
+                                            if thinking_msg:
+                                                thinking_msg.append(text_to_process)
+                                            text_to_process = ""
+                                    else:
+                                        # Look for <think> opening tag
+                                        open_idx = text_to_process.find("<think>")
+                                        if open_idx != -1:
+                                            # Emit any regular content before the tag
+                                            if open_idx > 0:
+                                                streaming_msg.append(text_to_process[:open_idx])
+                                            # Create thinking widget
+                                            in_thinking = True
+                                            thinking_msg = ThinkingMessage()
+                                            chat_log = self.query_one(ChatLog)
+                                            await chat_log.mount(thinking_msg, before=streaming_msg)
+                                            status_bar.update_activity("💭 Reasoning...")
+                                            text_to_process = text_to_process[open_idx + 7:]
+                                        elif text_to_process.endswith("<") or text_to_process.endswith("<t") or text_to_process.endswith("<th") or text_to_process.endswith("<thi") or text_to_process.endswith("<thin") or text_to_process.endswith("<think"):
+                                            # Might be a partial <think> tag — buffer it
+                                            partial_start = text_to_process.rfind("<")
+                                            if partial_start > 0:
+                                                streaming_msg.append(text_to_process[:partial_start])
+                                            thinking_buffer = text_to_process[partial_start:]
+                                            text_to_process = ""
+                                        else:
+                                            # All regular content
+                                            streaming_msg.append(text_to_process)
+                                            text_to_process = ""
+
+                                chunk_count += 1
                                 if chunk_count % 3 == 0:
+                                    if thinking_msg and in_thinking:
+                                        thinking_msg.flush()
                                     streaming_msg.flush()
                                     chat_container = self.query_one(ChatContainer)
                                     chat_container.scroll_to_bottom()
@@ -787,6 +847,16 @@ class FoundryApp(App):
 
                             if chunk.usage:
                                 stream_usage = chunk.usage
+
+                        # Flush any remaining thinking buffer as regular content
+                        if thinking_buffer:
+                            if in_thinking and thinking_msg:
+                                thinking_msg.append(thinking_buffer)
+                                thinking_msg.finalize()
+                            else:
+                                streaming_msg.append(thinking_buffer)
+                            thinking_buffer = ""
+
                         break  # Stream completed successfully
                     except Exception as rate_err:
                         error_str = str(rate_err)
@@ -835,6 +905,9 @@ class FoundryApp(App):
                             first_chunk = True
                             all_tc_deltas = []
                             stream_usage = None
+                            thinking_msg = None
+                            in_thinking = False
+                            thinking_buffer = ""
                             continue  # Retry within the inner while loop
 
                         elif "429" in error_str:

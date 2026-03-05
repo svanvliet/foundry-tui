@@ -285,7 +285,11 @@
         "vision": false
       },
       "context_window": 64000,
-      "max_output_tokens": 8192
+      "max_output_tokens": 8192,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "deepseek-v3.2",
@@ -302,7 +306,11 @@
         "vision": false
       },
       "context_window": 64000,
-      "max_output_tokens": 8192
+      "max_output_tokens": 8192,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "grok-3",
@@ -319,7 +327,11 @@
         "vision": false
       },
       "context_window": 131072,
-      "max_output_tokens": 16384
+      "max_output_tokens": 16384,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "grok-4.1-fast-reasoning",
@@ -336,7 +348,11 @@
         "vision": true
       },
       "context_window": 131072,
-      "max_output_tokens": 32768
+      "max_output_tokens": 32768,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     },
     {
       "id": "kimi-k2.5",
@@ -353,7 +369,11 @@
         "vision": false
       },
       "context_window": 131072,
-      "max_output_tokens": 16384
+      "max_output_tokens": 16384,
+      "rate_limits": {
+        "rpm_per_unit": 1,
+        "tpm_per_unit": 1000
+      }
     }
   ],
   "available_for_provisioning": [
