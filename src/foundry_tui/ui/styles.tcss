@@ -20,6 +20,7 @@ Screen {
 .message {
     margin-bottom: 1;
     padding: 1 2;
+    height: auto;
 }
 
 .message-user {
@@ -32,6 +33,11 @@ Screen {
     border: solid $secondary;
     border-title-color: $text;
     border-title-style: bold;
+}
+
+.message-assistant MarkdownWidget {
+    margin: 0;
+    padding: 0;
 }
 
 .message-error {

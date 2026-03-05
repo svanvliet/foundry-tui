@@ -2,14 +2,12 @@
 
 import json
 
-from rich.markdown import Markdown
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Vertical
-from textual.widgets import Static, Collapsible
-from textual.reactive import reactive
+from textual.widgets import Markdown as MarkdownWidget, Static, Collapsible
 
 
-class ChatMessage(Static):
+class ChatMessage(Vertical):
     """A single chat message with markdown rendering."""
 
     def __init__(
@@ -24,13 +22,7 @@ class ChatMessage(Static):
             content: The message content (supports markdown for assistant).
             role: The message role (user, assistant, error, system).
         """
-        # Render markdown for assistant messages, plain text for others
-        if role == "assistant":
-            rendered = Markdown(content)
-        else:
-            rendered = content
-
-        super().__init__(rendered, markup=(role != "assistant"), **kwargs)
+        super().__init__(**kwargs)
         self.role = role
         self.raw_content = content
         self.add_class("message")
@@ -44,6 +36,13 @@ class ChatMessage(Static):
             "system": "System",
         }
         self.border_title = role_titles.get(role, role.title())
+
+    def compose(self) -> ComposeResult:
+        """Compose the message content."""
+        if self.role == "assistant":
+            yield MarkdownWidget(self.raw_content)
+        else:
+            yield Static(self.raw_content, markup=True)
 
 
 class ToolCallMessage(Collapsible):
@@ -166,29 +165,32 @@ class ThinkingMessage(Collapsible):
         self.query_one(Static).update(self._content or "(no reasoning content)")
 
 
-class StreamingMessage(Static):
+class StreamingMessage(Vertical):
     """A message that can be updated with streaming content."""
 
     def __init__(self, **kwargs):
         """Initialize a streaming message."""
-        super().__init__("▌", **kwargs)
+        super().__init__(**kwargs)
         self.add_class("message")
         self.add_class("message-assistant")
         self.border_title = "Assistant"
         self._content = ""
         self._pending_update = False
 
+    def compose(self) -> ComposeResult:
+        """Compose with a static text widget for streaming updates."""
+        yield Static("▌", id="streaming-text")
+
     def append(self, text: str) -> None:
         """Append text to the message (batched updates)."""
         self._content += text
-        # Mark that we need an update, but don't trigger immediately
         self._pending_update = True
 
     def flush(self) -> None:
         """Flush pending updates to the display."""
         if self._pending_update:
             display_content = self._content + "▌" if self._content else "▌"
-            self.update(display_content)
+            self.query_one("#streaming-text", Static).update(display_content)
             self._pending_update = False
 
     @property
@@ -196,10 +198,11 @@ class StreamingMessage(Static):
         """Get the current content."""
         return self._content
 
-    def finalize(self) -> None:
-        """Finalize the message with markdown rendering."""
-        # Render final content as markdown
-        self.update(Markdown(self._content))
+    async def finalize(self) -> None:
+        """Replace streaming text with rendered markdown (with clickable links)."""
+        static = self.query_one("#streaming-text", Static)
+        await static.remove()
+        await self.mount(MarkdownWidget(self._content))
 
 
 class ChatLog(Vertical):

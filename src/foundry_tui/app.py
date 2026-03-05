@@ -2,12 +2,15 @@
 
 import asyncio
 import json
+import platform
+import subprocess
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 
 import pyperclip
 from textual.app import App, ComposeResult
-from textual.widgets import Static
+from textual.widgets import Markdown as MarkdownWidget, Static
 
 from foundry_tui.api.azure_openai import Message, ToolCall, ToolCallDelta, ToolCallFunction
 from foundry_tui.api.client import ChatClient
@@ -1175,7 +1178,7 @@ class FoundryApp(App):
                     if not full_response.strip():
                         await streaming_msg.remove()
                     else:
-                        streaming_msg.finalize()
+                        await streaming_msg.finalize()
 
                     # Add assistant message with tool_calls to history
                     assistant_msg = Message(
@@ -1234,7 +1237,7 @@ class FoundryApp(App):
                     continue
 
                 # No tool calls — this is the final text response
-                streaming_msg.finalize()
+                await streaming_msg.finalize()
 
                 # Store for /copy command
                 self._last_response = full_response
@@ -1337,3 +1340,36 @@ class FoundryApp(App):
             status_bar = self.query_one(StatusBar)
             status_bar.set_ready()
         self.query_one(MessageInput).focus()
+
+    # --- Link click handling ---
+
+    def on_markdown_link_clicked(self, event: MarkdownWidget.LinkClicked) -> None:
+        """Handle clicks on links in markdown content."""
+        href = event.href
+        log_event("Link clicked", href=href)
+
+        if href.startswith(("http://", "https://")):
+            webbrowser.open(href)
+        elif href.startswith("file://"):
+            self._open_path(href[7:])  # Strip file:// prefix
+        else:
+            # Treat as a local path if it looks like one
+            path = Path(href).expanduser()
+            if path.exists():
+                self._open_path(str(path))
+            else:
+                # Fallback: try as URL
+                webbrowser.open(href)
+
+    def _open_path(self, path: str) -> None:
+        """Open a local file or directory with the system default handler."""
+        try:
+            system = platform.system()
+            if system == "Darwin":
+                subprocess.Popen(["open", path])
+            elif system == "Windows":
+                subprocess.Popen(["explorer", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except Exception as e:
+            log_event("Failed to open path", path=path, error=str(e))

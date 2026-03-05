@@ -9,8 +9,9 @@ A polished terminal-based chat application for testing AI models on Microsoft Az
 - **Multi-Model Support** - Chat with 18+ models from OpenAI, DeepSeek, xAI, Mistral, and more
 - **Streaming Responses** - Real-time token streaming with animated status
 - **Model Picker** - Fuzzy search to quickly switch between models
-- **Tool Calling** - Web search via Tavily, extensible tool registry
+- **Tool Calling** - Web search, file creation, memory recall; extensible tool registry
 - **Memory** - Persistent user context across sessions; models recall facts on demand via tool calling with semantic search
+- **Clickable Links** - URLs in assistant responses open in your browser; file paths open in Finder/Explorer
 - **20 Color Themes** - Nord default, switch with `/theme` (Dracula, Tokyo Night, Gruvbox, etc.)
 - **Reasoning Display** - `<think>` tokens from reasoning models shown in collapsible widgets
 - **Rate Limit Tracking** - RPM/TPM display, auto-retry on 429 with countdown
@@ -127,6 +128,24 @@ The script will:
 | `Escape` | Cancel streaming / retry / close picker |
 | `Ctrl+C` | Quit (also works during retry countdown) |
 | `Ctrl+L` | Clear screen |
+
+### Built-in Tools
+
+Models with tool calling support can use these built-in tools:
+
+| Tool | Description | Config Required |
+|------|-------------|-----------------|
+| `web_search` | Search the web (Tavily for non-OpenAI models; OpenAI uses built-in `web_search_preview`) | `TAVILY_API_KEY` for non-OpenAI |
+| `save_memory` | Save a fact about the user for future recall | None |
+| `recall_memories` | Search saved memories (semantic search with embeddings if configured) | None (embeddings optional) |
+| `forget_memory` | Delete a specific memory by ID | None |
+| `create_file` | Create a text file in `~/Downloads/` | None |
+
+**File creation security**: Files are sandboxed to `~/Downloads/` only. Path traversal is blocked, binary executables (.exe, .dll, .so) are rejected, and a 10 MB size limit is enforced. Duplicate filenames are auto-suffixed (`report_1.md`, `report_2.md`, etc.).
+
+**Clickable links**: URLs in assistant responses are clickable — they open in your default browser. File paths from `create_file` can also be clicked to open in Finder/Explorer.
+
+Use `/tools` to see registered tools and `/tools info <name>` for parameter details.
 
 ### Supported Models
 

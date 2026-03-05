@@ -923,7 +923,7 @@ Wire RAPI into the main message sending flow.
 
 ---
 
-## Phase 11: File Creation Tool & Clickable Links
+## Phase 11: File Creation Tool & Clickable Links ✅
 
 Add a `create_file` tool so models can save files to the user's local filesystem,
 and make URLs/file paths in the TUI clickable.
@@ -946,7 +946,7 @@ and make URLs/file paths in the TUI clickable.
 
 **File:** `tools/file_create.py` (new)
 
-- [ ] **Create `CreateFileTool` class**
+- [x] **Create `CreateFileTool` class**
   - Parameters: `filename` (str), `content` (str)
   - Sanitize filename: strip path separators (`/`, `\`), `..`, control chars, limit to 255 chars
   - Block dangerous extensions: `.exe`, `.bat`, `.com`, `.msi`, `.dll`, `.so`, `.dylib`
@@ -956,7 +956,7 @@ and make URLs/file paths in the TUI clickable.
   - Return: full absolute path of created file + size in bytes
   - Tool description instructs model: "Creates a text file in the user's Downloads folder"
 
-- [ ] **Register in `tools/__init__.py`**
+- [x] **Register in `tools/__init__.py`**
   - Always registered (no API key needed)
   - Available to all tool-capable models
 
@@ -968,16 +968,16 @@ and make URLs/file paths in the TUI clickable.
 
 Make URLs and file paths in messages clickable.
 
-- [ ] **Add `action_open_link` to FoundryApp**
+- [x] **Add `action_open_link` to FoundryApp**
   - `action_open_link(url: str)` → calls `webbrowser.open(url)` for http(s) URLs
   - For `file://` or local paths → calls `subprocess.run(["open", path])` (macOS) or `xdg-open` (Linux)
 
-- [ ] **Enable link rendering in message widgets**
+- [x] **Enable link rendering in message widgets**
   - Use Textual's built-in `Markdown` widget (supports clickable links natively) instead of Rich's Markdown
   - Or: post-process rendered content to wrap URLs with `[@click=app.open_link('url')]url[/]` Rich markup
   - File paths from `create_file` results should render as clickable links
 
-- [ ] **Handle file:// links in tool results**
+- [x] **Handle file:// links in tool results**
   - When `CreateFileTool` returns a path, format it as a clickable link in the `ToolCallMessage` widget
   - Clicking opens the file in the default application or reveals in Finder/Explorer
 
@@ -985,9 +985,9 @@ Make URLs and file paths in messages clickable.
 
 ### 11.3 — Documentation
 
-- [ ] Update README with `create_file` tool description
-- [ ] Update `/tools` command output to show create_file
-- [ ] Note security model in README (sandboxed to ~/Downloads/)
+- [x] Update README with `create_file` tool description
+- [x] Update `/tools` command output to show create_file
+- [x] Note security model in README (sandboxed to ~/Downloads/)
 
 ---
 
@@ -1014,8 +1014,8 @@ Make URLs and file paths in messages clickable.
 
 ## Current Status
 
-**Phase**: Phase 11 — File Creation Tool & Clickable Links
-**Current Task**: Ready for implementation
+**Phase**: Phase 11 — File Creation Tool & Clickable Links ✅
+**Current Task**: None — all phases through 11 complete
 **Blockers**: None
 
 ---
@@ -1047,3 +1047,4 @@ Make URLs and file paths in messages clickable.
 | 2026-03-05 | Phase 10 plan | Complete | Responses API migration for Azure OpenAI models |
 | 2026-03-05 | Phase 10 | Complete | Responses API for Azure OpenAI models with built-in web search and server-side state |
 | 2026-03-05 | Phase 11 plan | Complete | File creation tool with security sandboxing + clickable TUI links |
+| 2026-03-05 | Phase 11 | Complete | create_file tool (~/Downloads/ sandbox), clickable links via Textual Markdown |
