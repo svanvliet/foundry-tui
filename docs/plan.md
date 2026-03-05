@@ -15,7 +15,7 @@
 
 ---
 
-## Phase 3: Polish (IN PROGRESS)
+## Phase 3: Polish ✅
 
 - [x] **3.1 Markdown Rendering**
   - [x] Rich markdown in assistant messages
@@ -37,12 +37,17 @@
   - [x] Session logs to `logs/`
   - [x] API request/response logging
 
-- [ ] **3.5 Tool Calling** (deferred to Phase 6)
+- [ ] **3.5 Tool Calling** (deferred to Phase 7)
   - Moved to future phase to focus on core UX
 
 - [x] **3.6 Commands**
   - [x] `/copy` - copy last response to clipboard
   - [x] `/export` - export conversation to JSON
+
+- [x] **3.7 Terminal Background Colors**
+  - [x] Use ANSI default colors (`ansi_default`) for terminal background inheritance
+  - [x] Set `ANSI_COLOR = True` on App to preserve ANSI color codes
+  - [x] Disabled automatic retries in OpenAI SDK (`max_retries=0`) for immediate error feedback
 
 ---
 
@@ -114,8 +119,8 @@ Interactive setup scripts for deploying Azure resources.
 
 ## Current Status
 
-**Phase**: 6 - Azure Setup Scripts (Complete)
-**Current Task**: Ready for Phase 7
+**Phase**: Phases 1-6 Complete
+**Current Task**: Ready for Phase 7 (Advanced Features)
 **Blockers**: None
 
 ---
@@ -133,3 +138,5 @@ Interactive setup scripts for deploying Azure resources.
 | 2026-03-04 | Phase 4 | Complete | /system command with persistence |
 | 2026-03-04 | Phase 5 | Complete | Auto-save conversations, load/save commands, picker |
 | 2026-03-04 | Phase 6 | Complete | Setup/teardown scripts, run.sh, comprehensive README |
+| 2026-03-04 | Rate limit fix | Complete | Disabled OpenAI SDK auto-retries (max_retries=0) |
+| 2026-03-04 | Terminal colors | Complete | ANSI_COLOR=True + ansi_default for terminal background |

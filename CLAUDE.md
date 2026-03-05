@@ -108,19 +108,27 @@ Three deployment types are supported:
 
 4. **Azure AI 400 errors**: API path should be `/models/chat/completions`, not `/openai/deployments/`
 
+5. **Rate limit 429 with 60s delay**: OpenAI SDK has automatic retries. Set `max_retries=0` in client constructor to show errors immediately
+
+6. **Black blocky backgrounds**: Textual doesn't support true terminal background transparency. Use `ANSI_COLOR = True` on App and `ansi_default` in CSS for best approximation
+
 ## Current Progress
 
 - **Phase 1** (MVP): Complete
 - **Phase 2** (Multi-Model): Complete
-- **Phase 3** (Polish): Complete
+- **Phase 3** (Polish): Complete - includes terminal colors fix
 - **Phase 4** (System Prompts): Complete
 - **Phase 5** (Conversations): Complete
-- **Phase 6** (Azure Setup Scripts): Not started
+- **Phase 6** (Azure Setup Scripts): Complete
 
 ## Next Steps
 
-1. Implement Azure setup scripts (Phase 6) - interactive Bash/PowerShell scripts for resource deployment
-2. Tool/function calling support (Phase 7)
+Phase 7 (Advanced Features):
+1. Tool/function calling support
+2. Per-model token tracking (cumulative across sessions)
+3. Model provisioning from catalog (in-app)
+4. Side-by-side model comparison
+5. Image/vision support
 
 ## Serverless Configuration
 
