@@ -34,6 +34,8 @@ class ModelCapabilities(BaseModel):
     tools: bool = False
     streaming: bool = True
     vision: bool = False
+    api: str = "completions"  # "responses" or "completions"
+    web_search: bool = False  # Built-in web search (RAPI only)
 
 
 class AzureOpenAIDeployment(BaseModel):

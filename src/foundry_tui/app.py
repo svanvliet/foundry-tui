@@ -24,9 +24,11 @@ from foundry_tui.storage.conversations import (
 from foundry_tui.storage.persistence import (
     get_last_model_id,
     get_model_rate_limits,
+    get_server_state,
     get_system_prompt,
     get_theme,
     set_last_model_id,
+    set_server_state,
     set_system_prompt,
     set_theme,
 )
@@ -66,6 +68,10 @@ class FoundryApp(App):
         self._last_response: str = ""  # Store last assistant response for /copy
         self._system_prompt: str | None = get_system_prompt()
         self._conversation_id: str | None = None  # Current conversation ID for auto-save
+
+        # RAPI server-side state
+        self._last_response_id: str | None = None  # For previous_response_id chaining
+        self._server_state: bool = get_server_state()  # Persisted setting
 
         # Initialize unified API client
         self.client = ChatClient(config=config)
@@ -245,6 +251,8 @@ class FoundryApp(App):
             await self._handle_memory_command(args)
         elif cmd in ("/theme",):
             await self._handle_theme_command(args)
+        elif cmd in ("/state",):
+            await self._handle_state_command(args)
         elif cmd in ("/help", "/h", "/?"):
             await self._show_help()
         else:
@@ -257,6 +265,7 @@ class FoundryApp(App):
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
         self._last_response = ""
+        self._last_response_id = None  # Clear RAPI state chain
 
         chat_log = self.query_one(ChatLog)
         await chat_log.remove_children()
@@ -282,6 +291,7 @@ class FoundryApp(App):
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
         self._last_response = ""
+        self._last_response_id = None  # Clear RAPI state chain
         self._conversation_id = None  # Reset conversation ID
 
         chat_log = self.query_one(ChatLog)
@@ -501,6 +511,7 @@ class FoundryApp(App):
         self.messages.clear()
         self.total_tokens = 0
         self._last_response = ""
+        self._last_response_id = None  # Can't resume server state from saved conv
 
         chat_log = self.query_one(ChatLog)
         await chat_log.remove_children()
@@ -611,6 +622,7 @@ class FoundryApp(App):
 
         # Notify user
         if old_model.id != event.model.id:
+            self._last_response_id = None  # Different model can't continue RAPI chain
             log_event("Model changed", old=old_model.id, new=event.model.id)
             await self._add_message(
                 "system",
@@ -750,6 +762,37 @@ class FoundryApp(App):
         set_theme(name)
         await self._add_message("system", f"Theme changed to [bold]{name}[/bold].")
 
+    async def _handle_state_command(self, args: str) -> None:
+        """Handle the /state command for server-side conversation state."""
+        if not args:
+            mode = "[green]on[/green] (server-side)" if self._server_state else "[dim]off[/dim] (local)"
+            api = self.current_model.capabilities.api
+            chain = f"  Response chain: {self._last_response_id[:16]}..." if self._last_response_id else "  Response chain: none"
+            lines = [
+                f"[bold]Server-side state:[/bold] {mode}",
+                f"  Current model API: {api}",
+                chain,
+                "",
+                "Usage: /state on | /state off",
+                "[dim]When on, OpenAI stores conversation context server-side (30 days).[/dim]",
+                "[dim]Reduces token usage by not resending full history each turn.[/dim]",
+            ]
+            await self._add_message("system", "\n".join(lines))
+            return
+
+        arg = args.strip().lower()
+        if arg == "on":
+            self._server_state = True
+            set_server_state(True)
+            await self._add_message("system", "Server-side state [green]enabled[/green]. Conversations will be stored on OpenAI servers.")
+        elif arg == "off":
+            self._server_state = False
+            self._last_response_id = None
+            set_server_state(False)
+            await self._add_message("system", "Server-side state [dim]disabled[/dim]. Using local conversation management.")
+        else:
+            await self._add_message("error", "Usage: /state on | /state off")
+
     async def _show_help(self) -> None:
         """Show help message."""
         help_text = (
@@ -759,6 +802,7 @@ class FoundryApp(App):
             "  /tools            - List registered tools (/tools info <name> for details)\n"
             "  /memory           - List memories (/memory search, /memory delete, /memory clear)\n"
             "  /theme [name]     - View/change color theme\n"
+            "  /state [on|off]   - Toggle server-side conversation state (RAPI)\n"
             "  /load, /convs     - Browse and load saved conversations\n"
             "  /save [title]     - Save current conversation with optional title\n"
             "  /new, /n          - Start a new conversation\n"
@@ -811,12 +855,23 @@ class FoundryApp(App):
         return message
 
     def _get_tool_definitions(self) -> list[dict] | None:
-        """Get tool definitions if tools are available and model supports them."""
+        """Get tool definitions if tools are available and model supports them.
+
+        For RAPI models with built-in web search, excludes the Tavily web_search
+        tool since the Responses API handles it natively.
+        """
         if self.tool_registry.is_empty():
             return None
         if not self.current_model.capabilities.tools:
             return None
-        return self.tool_registry.get_definitions()
+
+        defs = self.tool_registry.get_definitions()
+
+        # For RAPI models with built-in web search, don't send web_search as a function tool
+        if self.current_model.capabilities.web_search and defs:
+            defs = [d for d in defs if d.get("function", {}).get("name") != "web_search"]
+
+        return defs if defs else None
 
     async def _build_system_prompt(self, user_message: str = "") -> str | None:
         """Build the system prompt with memory injection.
@@ -937,6 +992,8 @@ class FoundryApp(App):
                             model=self.current_model,
                             messages=api_messages,
                             tools=tool_defs,
+                            store=self._server_state if self.current_model.capabilities.api == "responses" else None,
+                            previous_response_id=self._last_response_id if self._server_state else None,
                         ):
                             if not self.is_streaming:
                                 return  # Cancelled by user
@@ -1016,6 +1073,10 @@ class FoundryApp(App):
 
                             if chunk.usage:
                                 stream_usage = chunk.usage
+
+                            # Capture RAPI response ID for state chaining
+                            if chunk.response_id:
+                                self._last_response_id = chunk.response_id
 
                         # Flush any remaining thinking buffer as regular content
                         if thinking_buffer:
