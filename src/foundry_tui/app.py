@@ -38,6 +38,7 @@ class FoundryApp(App):
 
     TITLE = "Foundry TUI"
     CSS_PATH = Path(__file__).parent / "ui" / "styles.tcss"
+    ANSI_COLOR = True  # Preserve ANSI colors for terminal default background
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+l", "clear_screen", "Clear"),

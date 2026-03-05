@@ -4,6 +4,23 @@ Screen {
     layout: grid;
     grid-size: 1;
     grid-rows: 1fr auto auto;
+    background: ansi_default;
+}
+
+Static {
+    background: ansi_default;
+}
+
+Vertical {
+    background: ansi_default;
+}
+
+Horizontal {
+    background: ansi_default;
+}
+
+ScrollableContainer {
+    background: ansi_default;
 }
 
 /* Chat message area */
