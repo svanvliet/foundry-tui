@@ -1,0 +1,330 @@
+# Foundry TUI - Azure Setup Script (PowerShell)
+# Interactive guided setup for deploying Azure AI resources
+
+$ErrorActionPreference = "Stop"
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$ProjectRoot = Split-Path -Parent $ScriptDir
+
+# Source common functions
+. "$ScriptDir\lib\common.ps1"
+
+# Default values
+$DefaultResourceGroup = "foundry-tui-rg"
+$DefaultLocation = "eastus"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Welcome
+# ─────────────────────────────────────────────────────────────────────────────
+
+Clear-Host
+Write-Host ""
+Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Blue
+Write-Host "║           Foundry TUI - Azure Setup                          ║" -ForegroundColor Blue
+Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Blue
+Write-Host ""
+Write-Host "This script will guide you through deploying the Azure resources"
+Write-Host "needed to run Foundry TUI."
+Write-Host ""
+Write-Dim "You will need:"
+Write-Dim "  • Azure CLI installed and authenticated"
+Write-Dim "  • An active Azure subscription"
+Write-Dim "  • Permissions to create resources"
+Write-Host ""
+
+if (-not (Confirm-Action "Ready to begin?")) {
+    Write-Host "Setup cancelled."
+    exit 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prerequisites Check
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Header "Checking Prerequisites"
+
+# Check Azure CLI
+if (-not (Test-Command "az")) {
+    Write-Error "'az' is required but not installed."
+    Write-Dim "  Install: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
+    exit 1
+}
+Write-Success "Azure CLI installed"
+
+# Check authentication
+if (-not (Test-AzureAuth)) {
+    Write-Host ""
+    Write-Info "Please log in to Azure CLI:"
+    az login
+}
+Write-Success "Azure CLI authenticated"
+
+# Get current subscription
+$subscription = Get-AzureSubscription
+Write-Host ""
+Write-Info "Current subscription: $($subscription.name)"
+Write-Dim "  ID: $($subscription.id)"
+Write-Host ""
+
+if (-not (Confirm-Action "Use this subscription?")) {
+    Write-Host ""
+    Write-Info "Available subscriptions:"
+    az account list --query "[].{Name:name, ID:id}" -o table
+    Write-Host ""
+    $newSubId = Read-Host "? Enter subscription ID"
+    az account set --subscription $newSubId
+    $subscription = Get-AzureSubscription
+    Write-Success "Switched subscription"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Resource Group Setup
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Header "Resource Group Configuration"
+
+$ResourceGroup = Read-HostWithDefault "Resource group name" $DefaultResourceGroup
+$Location = Read-HostWithDefault "Location" $DefaultLocation
+
+# Check if resource group exists
+$rgExists = az group show --name $ResourceGroup 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Info "Resource group '$ResourceGroup' already exists"
+}
+else {
+    Write-Info "Creating resource group '$ResourceGroup' in '$Location'..."
+    az group create --name $ResourceGroup --location $Location --output none
+    Write-Success "Resource group created"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Model Selection
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Header "Model Selection"
+
+Write-Host "Select which models to deploy (enter numbers separated by spaces):"
+Write-Host ""
+Write-Host "Azure OpenAI Models:" -ForegroundColor White
+Write-Host "  1) GPT-4o           - Latest multimodal model"
+Write-Host "  2) GPT-4o-mini      - Smaller, faster, cheaper"
+Write-Host "  3) o4-mini          - Reasoning model"
+Write-Host ""
+Write-Host "Azure AI Models (pay-per-token):" -ForegroundColor White
+Write-Host "  4) DeepSeek R1      - Reasoning"
+Write-Host "  5) DeepSeek V3      - Chat"
+Write-Host "  6) Grok 3           - xAI chat model"
+Write-Host ""
+Write-Dim "Note: Serverless models (Mistral) require manual deployment via Azure AI Foundry portal"
+Write-Host ""
+
+$selection = Read-Host "? Enter model numbers [1 2]"
+if ([string]::IsNullOrWhiteSpace($selection)) { $selection = "1 2" }
+
+# Parse selection
+$DeployOpenAI = $false
+$DeployAI = $false
+$OpenAIModels = @()
+$AIModels = @()
+
+foreach ($num in $selection.Split(" ")) {
+    switch ($num) {
+        "1" { $DeployOpenAI = $true; $OpenAIModels += "gpt-4o" }
+        "2" { $DeployOpenAI = $true; $OpenAIModels += "gpt-4o-mini" }
+        "3" { $DeployOpenAI = $true; $OpenAIModels += "o4-mini" }
+        "4" { $DeployAI = $true; $AIModels += "deepseek-r1" }
+        "5" { $DeployAI = $true; $AIModels += "deepseek-v3" }
+        "6" { $DeployAI = $true; $AIModels += "grok-3" }
+    }
+}
+
+Write-Host ""
+Write-Info "Selected models:"
+foreach ($model in $OpenAIModels) { Write-Dim "  • $model (Azure OpenAI)" }
+foreach ($model in $AIModels) { Write-Dim "  • $model (Azure AI)" }
+Write-Host ""
+
+if (-not (Confirm-Action "Deploy these models?")) {
+    Write-Host "Setup cancelled."
+    exit 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Backup and update .env
+# ─────────────────────────────────────────────────────────────────────────────
+
+Set-Location $ProjectRoot
+Backup-EnvFile ".env"
+
+Update-EnvFile "AZURE_SUBSCRIPTION_ID" $subscription.id
+Update-EnvFile "AZURE_RESOURCE_GROUP" $ResourceGroup
+Update-EnvFile "AZURE_LOCATION" $Location
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy Azure OpenAI
+# ─────────────────────────────────────────────────────────────────────────────
+
+if ($DeployOpenAI) {
+    Write-Header "Deploying Azure OpenAI"
+
+    $OpenAIAccountName = "foundry-tui-openai-$(Get-Random)"
+
+    # Check for existing resource
+    $existingOpenAI = az cognitiveservices account list `
+        --resource-group $ResourceGroup `
+        --query "[?kind=='OpenAI'].name" -o tsv 2>$null | Select-Object -First 1
+
+    if ($existingOpenAI) {
+        Write-Info "Using existing Azure OpenAI resource: $existingOpenAI"
+        $OpenAIAccountName = $existingOpenAI
+    }
+    else {
+        Write-Info "Creating Azure OpenAI resource..."
+        az cognitiveservices account create `
+            --name $OpenAIAccountName `
+            --resource-group $ResourceGroup `
+            --location $Location `
+            --kind "OpenAI" `
+            --sku "S0" `
+            --output none
+        Write-Success "Azure OpenAI resource created"
+    }
+
+    # Get endpoint and key
+    $OpenAIEndpoint = az cognitiveservices account show `
+        --name $OpenAIAccountName `
+        --resource-group $ResourceGroup `
+        --query "properties.endpoint" -o tsv
+
+    $OpenAIKey = az cognitiveservices account keys list `
+        --name $OpenAIAccountName `
+        --resource-group $ResourceGroup `
+        --query "key1" -o tsv
+
+    Update-EnvFile "AZURE_OPENAI_ENDPOINT" $OpenAIEndpoint
+    Update-EnvFile "AZURE_OPENAI_API_KEY" $OpenAIKey
+    Update-EnvFile "AZURE_OPENAI_API_VERSION" "2024-12-01-preview"
+
+    Write-Success "Azure OpenAI configured"
+
+    # Deploy models
+    foreach ($model in $OpenAIModels) {
+        Write-Info "Deploying model: $model..."
+
+        try {
+            az cognitiveservices account deployment create `
+                --name $OpenAIAccountName `
+                --resource-group $ResourceGroup `
+                --deployment-name $model `
+                --model-name $model `
+                --model-version "latest" `
+                --model-format "OpenAI" `
+                --sku-capacity 10 `
+                --sku-name "Standard" `
+                --output none 2>$null
+        }
+        catch {
+            Write-Warning "Could not deploy $model - may need manual setup or quota"
+        }
+    }
+
+    Write-Success "Azure OpenAI models deployed"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy Azure AI Services
+# ─────────────────────────────────────────────────────────────────────────────
+
+if ($DeployAI) {
+    Write-Header "Deploying Azure AI Services"
+
+    $AIAccountName = "foundry-tui-ai-$(Get-Random)"
+
+    # Check for existing resource
+    $existingAI = az cognitiveservices account list `
+        --resource-group $ResourceGroup `
+        --query "[?kind=='AIServices'].name" -o tsv 2>$null | Select-Object -First 1
+
+    if ($existingAI) {
+        Write-Info "Using existing Azure AI Services resource: $existingAI"
+        $AIAccountName = $existingAI
+    }
+    else {
+        Write-Info "Creating Azure AI Services resource..."
+        try {
+            az cognitiveservices account create `
+                --name $AIAccountName `
+                --resource-group $ResourceGroup `
+                --location $Location `
+                --kind "AIServices" `
+                --sku "S0" `
+                --output none
+        }
+        catch {
+            Write-Warning "Could not create AIServices - trying CognitiveServices"
+            az cognitiveservices account create `
+                --name $AIAccountName `
+                --resource-group $ResourceGroup `
+                --location $Location `
+                --kind "CognitiveServices" `
+                --sku "S0" `
+                --output none
+        }
+        Write-Success "Azure AI Services resource created"
+    }
+
+    # Get endpoint and key
+    $AIEndpoint = az cognitiveservices account show `
+        --name $AIAccountName `
+        --resource-group $ResourceGroup `
+        --query "properties.endpoint" -o tsv
+
+    $AIKey = az cognitiveservices account keys list `
+        --name $AIAccountName `
+        --resource-group $ResourceGroup `
+        --query "key1" -o tsv
+
+    Update-EnvFile "AZURE_AI_ENDPOINT" $AIEndpoint
+    Update-EnvFile "AZURE_AI_API_KEY" $AIKey
+
+    Write-Success "Azure AI Services configured"
+
+    Write-Warning "Note: DeepSeek, Grok, and other marketplace models require"
+    Write-Warning "deployment through Azure AI Foundry portal."
+    Write-Dim "  Visit: https://ai.azure.com"
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Summary
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Header "Setup Complete!"
+
+Write-Host ""
+Write-Host "Your .env file has been configured with:" -ForegroundColor Green
+Write-Host ""
+if ($DeployOpenAI) {
+    Write-Host "  • Azure OpenAI endpoint and key"
+    Write-Host "  • Models: $($OpenAIModels -join ', ')"
+}
+if ($DeployAI) {
+    Write-Host "  • Azure AI Services endpoint and key"
+    Write-Host "  • Models: $($AIModels -join ', ') (deploy via portal)"
+}
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor White
+Write-Host ""
+Write-Host "  1. Run the app:"
+Write-Host "     uv run foundry-tui" -ForegroundColor Cyan
+Write-Host ""
+if ($DeployAI) {
+    Write-Host "  2. Deploy marketplace models via Azure AI Foundry:"
+    Write-Host "     https://ai.azure.com" -ForegroundColor Cyan
+    Write-Host ""
+}
+Write-Host "  3. To clean up resources later, run:"
+Write-Host "     .\scripts\teardown.ps1" -ForegroundColor Cyan
+Write-Host ""
+Write-Dim "Resources created in: $ResourceGroup"
+Write-Dim "Estimated cost: Pay-per-token only (no base cost)"
+Write-Host ""
