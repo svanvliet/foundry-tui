@@ -43,12 +43,24 @@ class ModelOption(ListItem):
         rpm_str = f"{self.rpm:,}" if self.rpm else "—"
         tpm_str = self._format_tpm(self.tpm) if self.tpm else "—"
 
+        # Truncate long model names to keep columns aligned
+        name = self.model.name
+        max_name = 20
+        if len(name) > max_name:
+            name = name[:max_name - 1] + "…"
+
+        # Truncate long provider names
+        provider = self.model.provider
+        max_prov = 8
+        if len(provider) > max_prov:
+            provider = provider[:max_prov - 1] + "…"
+
         yield Static(
-            f" {cat_badge} {self.model.name:<20} "
-            f"[dim]{self.model.provider:<10}[/dim] "
-            f"[cyan]{context_str:<6}[/cyan] "
-            f"[yellow]{rpm_str:>4}[/yellow] [dim]rpm[/dim]  "
-            f"[yellow]{tpm_str:>5}[/yellow] [dim]tpm[/dim]  "
+            f" {cat_badge} {name:<{max_name}} "
+            f"[dim]{provider:<{max_prov}}[/dim] "
+            f"[cyan]{context_str:<5}[/cyan] "
+            f"[yellow]{rpm_str:>4}[/yellow] [dim]rpm[/dim] "
+            f"[yellow]{tpm_str:>4}[/yellow] [dim]tpm[/dim] "
             f"{badges_str}",
             markup=True,
         )
