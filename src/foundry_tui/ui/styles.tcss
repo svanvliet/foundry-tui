@@ -4,6 +4,11 @@ Screen {
     layout: grid;
     grid-size: 1;
     grid-rows: 1fr auto auto;
+    background: transparent;
+}
+
+* {
+    background: transparent;
 }
 
 /* Chat message area */

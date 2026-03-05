@@ -86,7 +86,7 @@ class ModelPicker(ModalScreen):
     .picker-container {
         width: 70;
         height: 30;
-        background: $surface;
+        background: $surface !important;
         border: solid $primary;
         padding: 1 2;
     }
