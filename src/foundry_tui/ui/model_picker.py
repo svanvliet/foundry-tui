@@ -8,15 +8,18 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, ListItem, ListView, Static
 
 from foundry_tui.models import Model, ModelCatalog, ModelCategory
+from foundry_tui.storage.persistence import load_user_config
 
 
 class ModelOption(ListItem):
     """A selectable model option."""
 
-    def __init__(self, model: Model, **kwargs):
+    def __init__(self, model: Model, rpm: int = 0, tpm: int = 0, **kwargs):
         """Initialize the model option."""
         super().__init__(**kwargs)
         self.model = model
+        self.rpm = rpm
+        self.tpm = tpm
 
     def compose(self) -> ComposeResult:
         """Compose the model option."""
@@ -36,10 +39,16 @@ class ModelOption(ListItem):
         context_str = self._format_context(self.model.context_window)
         badges_str = " ".join(badges)
 
+        # Format rate limits
+        rpm_str = f"{self.rpm:,}" if self.rpm else "—"
+        tpm_str = self._format_tpm(self.tpm) if self.tpm else "—"
+
         yield Static(
-            f" {cat_badge} {self.model.name:<24} "
+            f" {cat_badge} {self.model.name:<20} "
             f"[dim]{self.model.provider:<10}[/dim] "
             f"[cyan]{context_str:<6}[/cyan] "
+            f"[yellow]{rpm_str:>4}[/yellow] [dim]rpm[/dim]  "
+            f"[yellow]{tpm_str:>5}[/yellow] [dim]tpm[/dim]  "
             f"{badges_str}",
             markup=True,
         )
@@ -51,6 +60,14 @@ class ModelOption(ListItem):
         elif tokens >= 1_000:
             return f"{tokens // 1_000}k"
         return str(tokens)
+
+    def _format_tpm(self, tpm: int) -> str:
+        """Format TPM value."""
+        if tpm >= 1_000_000:
+            return f"{tpm // 1_000_000}M"
+        elif tpm >= 1_000:
+            return f"{tpm // 1_000}k"
+        return str(tpm)
 
 
 class ProvisionOption(ListItem):
@@ -84,7 +101,7 @@ class ModelPicker(ModalScreen):
     }
 
     .picker-container {
-        width: 70;
+        width: 90;
         height: 30;
         background: $surface;
         border: solid $primary;
@@ -148,6 +165,9 @@ class ModelPicker(ModalScreen):
         self.catalog = catalog
         self.current_model = current_model
         self.filtered_models: list[Model] = list(catalog.models)
+        # Load rate limits from user config, fall back to catalog defaults
+        config = load_user_config()
+        self._rate_limits: dict[str, dict] = config.get("rate_limits", {})
 
     def compose(self) -> ComposeResult:
         """Compose the model picker."""
@@ -193,6 +213,16 @@ class ModelPicker(ModalScreen):
                 query_idx += 1
         return query_idx == len(query)
 
+    def _get_rate_limits(self, model: Model) -> tuple[int, int]:
+        """Get RPM and TPM for a model from config or catalog defaults."""
+        config_limits = self._rate_limits.get(model.id)
+        if config_limits:
+            return config_limits.get("rpm", 0), config_limits.get("tpm", 0)
+        # Fall back to catalog rate_limits (per-unit × 1 as default capacity)
+        if model.rate_limits:
+            return model.rate_limits.rpm_per_unit, model.rate_limits.tpm_per_unit
+        return 0, 0
+
     def _update_list(self) -> None:
         """Update the model list display."""
         list_view = self.query_one(ModelsListView)
@@ -208,11 +238,13 @@ class ModelPicker(ModalScreen):
 
         # Chat models section
         for model in chat_models:
-            list_view.append(ModelOption(model))
+            rpm, tpm = self._get_rate_limits(model)
+            list_view.append(ModelOption(model, rpm=rpm, tpm=tpm))
 
         # Reasoning models section
         for model in reasoning_models:
-            list_view.append(ModelOption(model))
+            rpm, tpm = self._get_rate_limits(model)
+            list_view.append(ModelOption(model, rpm=rpm, tpm=tpm))
 
         # Provision option
         list_view.append(ProvisionOption())
