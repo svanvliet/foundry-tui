@@ -43,20 +43,6 @@ class MessageInput(TextArea):
 class InputContainer(Horizontal):
     """Container for the input area."""
 
-    DEFAULT_CSS = """
-    InputContainer {
-        height: auto;
-        max-height: 10;
-        padding: 0;
-    }
-
-    InputContainer > .input-prompt {
-        width: 3;
-        height: 1;
-        padding: 0;
-    }
-    """
-
     def __init__(self, **kwargs):
         """Initialize the input container."""
         super().__init__(**kwargs)
@@ -64,7 +50,4 @@ class InputContainer(Horizontal):
 
     def compose(self) -> ComposeResult:
         """Compose the input container."""
-        from textual.widgets import Static
-
-        yield Static("[#7aa2f7]❯[/#7aa2f7] ", classes="input-prompt", markup=True)
         yield MessageInput()

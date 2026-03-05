@@ -1,4 +1,4 @@
-/* Foundry TUI Styles - Claude Code inspired */
+/* Foundry TUI Styles */
 
 Screen {
     layout: grid;
@@ -14,77 +14,65 @@ Screen {
 
 #chat-log {
     height: auto;
-    padding: 0 2;
+    padding: 1 2;
 }
 
-/* Messages - invisible containers */
 .message {
-    margin: 0 0 1 0;
-    padding: 0;
+    margin-bottom: 1;
+    padding: 1 2;
 }
 
 .message-user {
-    color: $text;
+    background: $primary-darken-2;
+    border: solid $primary;
+    border-title-color: $text;
+    border-title-style: bold;
 }
 
 .message-assistant {
-    color: $text;
+    background: $surface;
+    border: solid $secondary;
+    border-title-color: $text;
+    border-title-style: bold;
 }
 
 .message-error {
-    color: #ff6b6b;
+    background: $error 20%;
+    border: solid $error;
+    color: $error;
 }
 
 .message-system {
-    color: $text-muted;
+    background: $warning 20%;
+    border: solid $warning;
+    color: $warning;
 }
 
-/* Input area - completely invisible */
+/* Input area */
 #input-container {
     height: auto;
     max-height: 10;
-    padding: 0 2;
+    padding: 0 1;
+    border-top: solid $primary-darken-1;
 }
 
 #message-input {
     height: auto;
-    min-height: 1;
+    min-height: 3;
     max-height: 8;
-    margin: 0;
-    border: none;
-    background: transparent;
-    padding: 0;
+    margin: 1 0;
+    border: solid $primary-darken-2;
 }
 
 #message-input:focus {
-    border: none;
-    background: transparent;
+    border: solid $primary;
 }
 
-/* Status bar - minimal, blends in */
-StatusBar {
-    height: 1;
-    padding: 0 2;
-    color: $text-muted;
-}
+/* Status bar - styles defined in StatusBar.DEFAULT_CSS */
 
 /* Welcome message */
 #welcome {
     text-align: center;
-    padding: 3;
+    padding: 2;
     color: $text-muted;
-}
-
-/* Model picker */
-ModelPicker > Vertical {
-    background: $surface;
-    border: round $primary;
-    padding: 1 2;
-}
-
-/* Conversation picker */
-ConversationPicker > Vertical {
-    background: $surface;
-    border: round $primary;
-    padding: 1 2;
 }
