@@ -29,7 +29,7 @@ from foundry_tui.storage.persistence import (
 from foundry_tui.tools import create_default_registry
 from foundry_tui.tools.registry import ToolRegistry
 from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage, ToolCallMessage
-from foundry_tui.ui.input import InputContainer, MessageInput
+from foundry_tui.ui.input import CommandMenu, InputContainer, MessageInput
 from foundry_tui.ui.conversation_picker import ConversationPicker
 from foundry_tui.ui.model_picker import ModelPicker
 from foundry_tui.ui.status_bar import StatusBar
@@ -85,6 +85,7 @@ class FoundryApp(App):
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
         yield ChatContainer()
+        yield CommandMenu()
         yield InputContainer()
         yield StatusBar()
 
