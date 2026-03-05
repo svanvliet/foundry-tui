@@ -12,7 +12,7 @@ from foundry_tui.api.azure_openai import Message, ToolCall, ToolCallDelta, ToolC
 from foundry_tui.api.client import ChatClient
 from foundry_tui.config import Config
 from foundry_tui.models import Model
-from foundry_tui.storage.logger import get_logger, log_api_error, log_api_request, log_event
+from foundry_tui.storage.logger import get_logger, log_api_error, log_api_request, log_event, log_request_detail, log_token_usage
 from foundry_tui.storage.conversations import (
     Conversation,
     generate_conversation_id,
@@ -54,6 +54,8 @@ class FoundryApp(App):
         self.current_model = self._get_initial_model()
         self.messages: list[Message] = []
         self.total_tokens = 0
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
         self.is_streaming = False
         self._current_streaming_message: StreamingMessage | None = None
         self._last_response: str = ""  # Store last assistant response for /copy
@@ -192,6 +194,8 @@ class FoundryApp(App):
         """Clear the chat history."""
         self.messages.clear()
         self.total_tokens = 0
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
         self._last_response = ""
 
         chat_log = self.query_one(ChatLog)
@@ -200,6 +204,9 @@ class FoundryApp(App):
         # Reset token counter in status bar
         status_bar = self.query_one(StatusBar)
         status_bar.session_tokens = 0
+        status_bar._prompt_tokens = 0
+        status_bar._completion_tokens = 0
+        status_bar._refresh_tokens()
 
         await self._add_message("system", "Chat cleared.")
 
@@ -211,6 +218,8 @@ class FoundryApp(App):
 
         self.messages.clear()
         self.total_tokens = 0
+        self.total_prompt_tokens = 0
+        self.total_completion_tokens = 0
         self._last_response = ""
         self._conversation_id = None  # Reset conversation ID
 
@@ -220,6 +229,9 @@ class FoundryApp(App):
         # Reset token counter in status bar
         status_bar = self.query_one(StatusBar)
         status_bar.session_tokens = 0
+        status_bar._prompt_tokens = 0
+        status_bar._completion_tokens = 0
+        status_bar._refresh_tokens()
 
         await self._add_message(
             "system",
@@ -695,11 +707,9 @@ class FoundryApp(App):
             api_messages.append(Message(role="system", content=self._system_prompt))
         api_messages.extend(self.messages)
 
-        # Log the request
-        log_api_request(
-            self.current_model.id,
-            [{"role": m.role, "content": (m.content or "")[:100]} for m in api_messages],
-        )
+        # Log detailed request info
+        api_dicts = [m.to_api_dict() for m in api_messages]
+        log_request_detail(self.current_model.id, api_dicts)
 
         # Get tool definitions
         tool_defs = self._get_tool_definitions()
@@ -723,6 +733,7 @@ class FoundryApp(App):
                 chunk_count = 0
                 first_chunk = True
                 all_tc_deltas: list[ToolCallDelta] = []
+                stream_usage = None  # Will be set from the final chunk
 
                 async for chunk in self.client.stream_chat(
                     model=self.current_model,
@@ -746,6 +757,9 @@ class FoundryApp(App):
 
                     if chunk.tool_calls:
                         all_tc_deltas.extend(chunk.tool_calls)
+
+                    if chunk.usage:
+                        stream_usage = chunk.usage
 
                 # Flush remaining content
                 streaming_msg.flush()
@@ -823,15 +837,47 @@ class FoundryApp(App):
                 # Add to message history
                 self.messages.append(Message(role="assistant", content=full_response))
 
-                # Estimate token count
-                estimated_tokens = len(text) // 4 + len(full_response) // 4
-                self.total_tokens += estimated_tokens
-                status_bar.add_tokens(estimated_tokens)
+                # Token tracking: use real usage if available, estimate otherwise
+                if stream_usage:
+                    prompt_tokens = stream_usage.prompt_tokens
+                    completion_tokens = stream_usage.completion_tokens
+                    total = stream_usage.total_tokens
+                else:
+                    prompt_tokens = len(text) // 4
+                    completion_tokens = len(full_response) // 4
+                    total = prompt_tokens + completion_tokens
+
+                self.total_tokens += total
+                self.total_prompt_tokens += prompt_tokens
+                self.total_completion_tokens += completion_tokens
+                status_bar.add_tokens(total, prompt=prompt_tokens, completion=completion_tokens)
+
+                # Build input breakdown for log
+                breakdown: dict[str, int] = {}
+                if self._system_prompt:
+                    breakdown["system"] = len(self._system_prompt) // 4
+                history_chars = sum(len(m.content or "") for m in self.messages[:-1])
+                breakdown["history"] = history_chars // 4
+                breakdown["user_msg"] = len(text) // 4
+                if tool_defs:
+                    breakdown["tool_defs"] = len(str(tool_defs)) // 4
+
+                log_token_usage(
+                    model=self.current_model.id,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total,
+                    message_breakdown=breakdown,
+                )
 
                 log_event(
                     "Response received",
                     model=self.current_model.id,
                     response_len=len(full_response),
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total,
+                    source="actual" if stream_usage else "estimated",
                 )
 
                 # Auto-save conversation

@@ -41,6 +41,7 @@ class StreamChunk:
     content: str
     finish_reason: str | None = None
     tool_calls: list[ToolCallDelta] | None = None
+    usage: "TokenUsage | None" = None
 
 
 @dataclass
@@ -123,6 +124,7 @@ class AzureOpenAIClient:
             "model": deployment_name,
             "messages": api_messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
 
         if max_tokens:
@@ -133,6 +135,15 @@ class AzureOpenAIClient:
         stream = await self.client.chat.completions.create(**kwargs)
 
         async for chunk in stream:
+            # Final usage-only chunk (no choices) when stream_options.include_usage is set
+            chunk_usage: TokenUsage | None = None
+            if hasattr(chunk, "usage") and chunk.usage:
+                chunk_usage = TokenUsage(
+                    prompt_tokens=chunk.usage.prompt_tokens or 0,
+                    completion_tokens=chunk.usage.completion_tokens or 0,
+                    total_tokens=chunk.usage.total_tokens or 0,
+                )
+
             if chunk.choices and len(chunk.choices) > 0:
                 choice = chunk.choices[0]
                 delta = choice.delta
@@ -155,12 +166,16 @@ class AzureOpenAIClient:
                             )
                         )
 
-                if content or finish_reason or tc_deltas:
+                if content or finish_reason or tc_deltas or chunk_usage:
                     yield StreamChunk(
                         content=content,
                         finish_reason=finish_reason,
                         tool_calls=tc_deltas,
+                        usage=chunk_usage,
                     )
+            elif chunk_usage:
+                # Usage-only chunk (after all content)
+                yield StreamChunk(content="", usage=chunk_usage)
 
     async def chat(
         self,

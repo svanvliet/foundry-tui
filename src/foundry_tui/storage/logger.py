@@ -90,6 +90,72 @@ def log_api_response(model: str, content: str, usage: dict | None = None) -> Non
         logger.debug(f"  Usage: {usage}")
 
 
+def log_token_usage(
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: int,
+    message_breakdown: dict | None = None,
+) -> None:
+    """Log detailed token usage for an API call.
+
+    Args:
+        model: Model ID
+        prompt_tokens: Tokens sent (input)
+        completion_tokens: Tokens received (output)
+        total_tokens: Total tokens
+        message_breakdown: Optional dict with role-based token estimates
+            e.g. {"system": 150, "history": 2400, "tools": 300, "user": 45}
+    """
+    logger = get_logger()
+    logger.info(f"TOKEN USAGE | model={model}")
+    logger.info(f"  Tokens IN  (prompt):     {prompt_tokens:,}")
+    logger.info(f"  Tokens OUT (completion): {completion_tokens:,}")
+    logger.info(f"  Tokens TOTAL:            {total_tokens:,}")
+    if message_breakdown:
+        parts = ", ".join(f"{k}={v:,}" for k, v in message_breakdown.items())
+        logger.info(f"  Input breakdown: {parts}")
+
+
+def log_request_detail(
+    model: str,
+    messages: list,
+    tool_defs: list | None = None,
+) -> None:
+    """Log detailed request content for debugging token usage.
+
+    Args:
+        model: Model ID
+        messages: List of message dicts sent to the API
+        tool_defs: Tool definitions if any
+    """
+    logger = get_logger()
+    logger.info(f"API CALL DETAIL | model={model} | messages={len(messages)}")
+    total_chars = 0
+    for i, msg in enumerate(messages):
+        role = msg.get("role", "?")
+        content = msg.get("content") or ""
+        content_len = len(content)
+        tool_calls = msg.get("tool_calls")
+        tool_call_id = msg.get("tool_call_id")
+
+        extra = ""
+        if tool_calls:
+            extra = f" | tool_calls={len(tool_calls)}"
+        if tool_call_id:
+            extra = f" | tool_call_id={tool_call_id}"
+
+        logger.info(f"  [{i}] role={role} | {content_len} chars{extra}")
+        total_chars += content_len
+
+    est_tokens = total_chars // 4
+    logger.info(f"  Total input chars: {total_chars:,} (~{est_tokens:,} tokens est.)")
+
+    if tool_defs:
+        tool_json = str(tool_defs)
+        logger.info(f"  Tool definitions: {len(tool_defs)} tools, {len(tool_json)} chars")
+
+
 def log_api_error(model: str, error: Exception) -> None:
     """Log an API error."""
     logger = get_logger()

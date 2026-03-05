@@ -44,6 +44,7 @@ class ServerlessClient:
         payload: dict = {
             "messages": [m.to_api_dict() for m in messages],
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens
@@ -66,6 +67,17 @@ class ServerlessClient:
 
                     try:
                         chunk = json.loads(data)
+
+                        # Parse usage if present (final chunk with stream_options)
+                        chunk_usage: TokenUsage | None = None
+                        if chunk.get("usage"):
+                            u = chunk["usage"]
+                            chunk_usage = TokenUsage(
+                                prompt_tokens=u.get("prompt_tokens", 0),
+                                completion_tokens=u.get("completion_tokens", 0),
+                                total_tokens=u.get("total_tokens", 0),
+                            )
+
                         if chunk.get("choices"):
                             choice = chunk["choices"][0]
                             delta = choice.get("delta", {})
@@ -88,12 +100,15 @@ class ServerlessClient:
                                         )
                                     )
 
-                            if content or finish_reason or tc_deltas:
+                            if content or finish_reason or tc_deltas or chunk_usage:
                                 yield StreamChunk(
                                     content=content,
                                     finish_reason=finish_reason,
                                     tool_calls=tc_deltas,
+                                    usage=chunk_usage,
                                 )
+                        elif chunk_usage:
+                            yield StreamChunk(content="", usage=chunk_usage)
                     except json.JSONDecodeError:
                         continue
 

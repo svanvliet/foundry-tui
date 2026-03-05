@@ -58,6 +58,8 @@ class StatusBar(Horizontal):
         self._provider = ""
         self._activity = ActivityState.READY
         self._session_tokens = 0
+        self._prompt_tokens = 0
+        self._completion_tokens = 0
         self._warning_threshold = 10000
         self._tool_count = 0
         self._mounted = False
@@ -123,13 +125,13 @@ class StatusBar(Horizontal):
             widget.update(f"│ [yellow]{spinner}[/yellow] {state_text}")
 
     def _refresh_tokens(self) -> None:
-        """Refresh token count display."""
+        """Refresh token count display with input/output breakdown."""
         if not self._mounted:
             return
         widget = self.query_one("#sb-tokens", Static)
 
         if self._session_tokens == 0:
-            widget.update("│ Session: 0 tokens")
+            widget.update("│ Tokens: 0")
             return
 
         # Color based on threshold
@@ -141,8 +143,10 @@ class StatusBar(Horizontal):
         else:
             color = "red"
 
-        formatted = f"{self._session_tokens:,}"
-        widget.update(f"│ Session: [{color}]{formatted}[/{color}] tokens")
+        total = f"{self._session_tokens:,}"
+        prompt = f"{self._prompt_tokens:,}"
+        completion = f"{self._completion_tokens:,}"
+        widget.update(f"│ Tokens: [{color}]{total}[/{color}] [dim](↑{prompt} ↓{completion})[/dim]")
 
     def _refresh_provider(self) -> None:
         """Refresh provider display."""
@@ -190,9 +194,12 @@ class StatusBar(Horizontal):
     def warning_threshold(self, value: int) -> None:
         self._warning_threshold = value
 
-    def add_tokens(self, count: int) -> None:
-        """Add to the session token count."""
-        self.session_tokens += count
+    def add_tokens(self, count: int, prompt: int = 0, completion: int = 0) -> None:
+        """Add to the session token count with optional breakdown."""
+        self._session_tokens += count
+        self._prompt_tokens += prompt
+        self._completion_tokens += completion
+        self._refresh_tokens()
 
     def set_ready(self) -> None:
         """Set status to ready."""
