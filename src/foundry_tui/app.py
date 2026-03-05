@@ -707,10 +707,6 @@ class FoundryApp(App):
             api_messages.append(Message(role="system", content=self._system_prompt))
         api_messages.extend(self.messages)
 
-        # Log detailed request info
-        api_dicts = [m.to_api_dict() for m in api_messages]
-        log_request_detail(self.current_model.id, api_dicts)
-
         # Get tool definitions
         tool_defs = self._get_tool_definitions()
 
@@ -724,42 +720,76 @@ class FoundryApp(App):
             while iteration < self._max_tool_iterations:
                 iteration += 1
 
+                # Log full request detail for every API call (including tool-loop re-calls)
+                log_request_detail(
+                    self.current_model.id,
+                    [m.to_api_dict() for m in api_messages],
+                    tool_defs=tool_defs,
+                )
+
                 # Start streaming message
                 streaming_msg = await self._start_streaming_message()
                 status_bar.set_thinking()
 
-                # Stream the response
+                # Stream the response (with 429 retry for tool-loop back-to-back calls)
                 full_response = ""
                 chunk_count = 0
                 first_chunk = True
                 all_tc_deltas: list[ToolCallDelta] = []
                 stream_usage = None  # Will be set from the final chunk
 
-                async for chunk in self.client.stream_chat(
-                    model=self.current_model,
-                    messages=api_messages,
-                    tools=tool_defs,
-                ):
-                    if chunk.content:
-                        if first_chunk:
-                            status_bar.set_streaming()
-                            first_chunk = False
+                try:
+                    async for chunk in self.client.stream_chat(
+                        model=self.current_model,
+                        messages=api_messages,
+                        tools=tool_defs,
+                    ):
+                        if chunk.content:
+                            if first_chunk:
+                                status_bar.set_streaming()
+                                first_chunk = False
 
-                        full_response += chunk.content
-                        streaming_msg.append(chunk.content)
-                        chunk_count += 1
+                            full_response += chunk.content
+                            streaming_msg.append(chunk.content)
+                            chunk_count += 1
 
-                        if chunk_count % 3 == 0:
-                            streaming_msg.flush()
-                            chat_container = self.query_one(ChatContainer)
-                            chat_container.scroll_to_bottom()
-                            await asyncio.sleep(0)
+                            if chunk_count % 3 == 0:
+                                streaming_msg.flush()
+                                chat_container = self.query_one(ChatContainer)
+                                chat_container.scroll_to_bottom()
+                                await asyncio.sleep(0)
 
-                    if chunk.tool_calls:
-                        all_tc_deltas.extend(chunk.tool_calls)
+                        if chunk.tool_calls:
+                            all_tc_deltas.extend(chunk.tool_calls)
 
-                    if chunk.usage:
-                        stream_usage = chunk.usage
+                        if chunk.usage:
+                            stream_usage = chunk.usage
+                except Exception as rate_err:
+                    error_str = str(rate_err)
+                    if "429" in error_str:
+                        # Parse retry-after from error message
+                        import re
+                        retry_match = re.search(r"retry after (\d+) second", error_str, re.IGNORECASE)
+                        wait_secs = int(retry_match.group(1)) if retry_match else 10
+                        wait_secs = min(wait_secs, 60)  # Cap at 60s
+
+                        log_event("Rate limited (429)", model=self.current_model.id, retry_after=wait_secs, iteration=iteration)
+
+                        # Remove the empty streaming message
+                        try:
+                            await streaming_msg.remove()
+                        except Exception:
+                            pass
+
+                        # Show countdown in status bar and wait
+                        for remaining in range(wait_secs, 0, -1):
+                            status_bar.update_activity(f"Rate limited — retrying in {remaining}s")
+                            await asyncio.sleep(1)
+
+                        status_bar.set_sending()
+                        continue  # Retry the same iteration
+                    else:
+                        raise  # Re-raise non-429 errors
 
                 # Flush remaining content
                 streaming_msg.flush()
