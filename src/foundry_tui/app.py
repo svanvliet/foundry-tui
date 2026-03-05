@@ -1,5 +1,6 @@
 """Main Foundry TUI application."""
 
+import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
@@ -160,8 +161,9 @@ class FoundryApp(App):
         # Add user message to chat
         await self._add_message("user", text)
 
-        # Send to API and stream response
-        await self._send_message(text)
+        # Send to API and stream response (run as background worker
+        # so the event loop stays responsive for Ctrl+C, Escape, etc.)
+        self.run_worker(self._send_message(text), exclusive=True)
 
     async def _handle_command(self, command: str) -> None:
         """Handle slash commands."""
@@ -707,7 +709,8 @@ class FoundryApp(App):
         execute each tool, append results, and call the API again until
         the model produces a final text response.
         """
-        import asyncio
+        if self.is_streaming:
+            return  # Prevent double-sends
 
         # Add to message history
         self.messages.append(Message(role="user", content=text))
@@ -761,6 +764,9 @@ class FoundryApp(App):
                             messages=api_messages,
                             tools=tool_defs,
                         ):
+                            if not self.is_streaming:
+                                return  # Cancelled by user
+
                             if chunk.content:
                                 if first_chunk:
                                     status_bar.set_streaming()
@@ -1017,6 +1023,10 @@ class FoundryApp(App):
         await self._clear_chat()
 
     def action_cancel(self) -> None:
-        """Cancel current operation."""
-        # For now, just focus input
+        """Cancel current operation (retry countdown, streaming, etc.)."""
+        if self.is_streaming:
+            self.is_streaming = False  # Breaks retry countdown and streaming loops
+            log_event("Operation cancelled by user")
+            status_bar = self.query_one(StatusBar)
+            status_bar.set_ready()
         self.query_one(MessageInput).focus()
