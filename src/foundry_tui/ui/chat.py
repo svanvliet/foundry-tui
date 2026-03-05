@@ -4,11 +4,36 @@ from rich.markdown import Markdown
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Vertical
 from textual.widgets import Static
-from textual.reactive import reactive
 
 
-class ChatMessage(Static):
-    """A single chat message with markdown rendering."""
+# Role indicators with colors (Rich markup)
+ROLE_INDICATORS = {
+    "user": "[#7aa2f7]❯[/#7aa2f7] [bold #7aa2f7]You[/bold #7aa2f7]",
+    "assistant": "[#9ece6a]◆[/#9ece6a] [bold #9ece6a]Assistant[/bold #9ece6a]",
+    "error": "[#ff6b6b]✗[/#ff6b6b] [bold #ff6b6b]Error[/bold #ff6b6b]",
+    "system": "[#e0af68]●[/#e0af68] [bold #e0af68]System[/bold #e0af68]",
+}
+
+
+class ChatMessage(Vertical):
+    """A single chat message with role indicator and content."""
+
+    DEFAULT_CSS = """
+    ChatMessage {
+        height: auto;
+        margin: 0 0 1 0;
+        padding: 0;
+    }
+
+    ChatMessage > .role-indicator {
+        height: 1;
+        padding: 0 1;
+    }
+
+    ChatMessage > .message-content {
+        padding: 0 1 0 3;
+    }
+    """
 
     def __init__(
         self,
@@ -22,51 +47,75 @@ class ChatMessage(Static):
             content: The message content (supports markdown for assistant).
             role: The message role (user, assistant, error, system).
         """
-        # Render markdown for assistant messages, plain text for others
-        if role == "assistant":
-            rendered = Markdown(content)
-        else:
-            rendered = content
-
-        super().__init__(rendered, markup=(role != "assistant"), **kwargs)
+        super().__init__(**kwargs)
         self.role = role
         self.raw_content = content
+        self._rendered_content = content
         self.add_class("message")
         self.add_class(f"message-{role}")
 
-        # Set border title based on role
-        role_titles = {
-            "user": "You",
-            "assistant": "Assistant",
-            "error": "Error",
-            "system": "System",
-        }
-        self.border_title = role_titles.get(role, role.title())
+    def compose(self) -> ComposeResult:
+        """Compose the message with role indicator and content."""
+        # Role indicator
+        indicator = ROLE_INDICATORS.get(self.role, f"● {self.role.title()}")
+        yield Static(indicator, classes="role-indicator", markup=True)
+
+        # Content - markdown for assistant, plain for others
+        if self.role == "assistant":
+            yield Static(Markdown(self.raw_content), classes="message-content")
+        else:
+            yield Static(self.raw_content, classes="message-content", markup=True)
 
 
-class StreamingMessage(Static):
+class StreamingMessage(Vertical):
     """A message that can be updated with streaming content."""
+
+    DEFAULT_CSS = """
+    StreamingMessage {
+        height: auto;
+        margin: 0 0 1 0;
+        padding: 0;
+    }
+
+    StreamingMessage > .role-indicator {
+        height: 1;
+        padding: 0 1;
+    }
+
+    StreamingMessage > .message-content {
+        padding: 0 1 0 3;
+    }
+    """
 
     def __init__(self, **kwargs):
         """Initialize a streaming message."""
-        super().__init__("▌", **kwargs)
+        super().__init__(**kwargs)
         self.add_class("message")
         self.add_class("message-assistant")
-        self.border_title = "Assistant"
         self._content = ""
         self._pending_update = False
+        self._content_widget: Static | None = None
+
+    def compose(self) -> ComposeResult:
+        """Compose the streaming message."""
+        indicator = ROLE_INDICATORS["assistant"]
+        yield Static(indicator, classes="role-indicator", markup=True)
+        yield Static("▌", classes="message-content")
+
+    def on_mount(self) -> None:
+        """Get reference to content widget after mount."""
+        self._content_widget = self.query_one(".message-content", Static)
 
     def append(self, text: str) -> None:
         """Append text to the message (batched updates)."""
         self._content += text
-        # Mark that we need an update, but don't trigger immediately
         self._pending_update = True
 
     def flush(self) -> None:
         """Flush pending updates to the display."""
-        if self._pending_update:
+        if self._pending_update and self._content_widget:
             display_content = self._content + "▌" if self._content else "▌"
-            self.update(display_content)
+            self._content_widget.update(display_content)
             self._pending_update = False
 
     @property
@@ -76,8 +125,8 @@ class StreamingMessage(Static):
 
     def finalize(self) -> None:
         """Finalize the message with markdown rendering."""
-        # Render final content as markdown
-        self.update(Markdown(self._content))
+        if self._content_widget:
+            self._content_widget.update(Markdown(self._content))
 
 
 class ChatLog(Vertical):

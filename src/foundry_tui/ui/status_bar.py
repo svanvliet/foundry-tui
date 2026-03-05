@@ -65,8 +65,8 @@ class StatusBar(Horizontal):
     def compose(self) -> ComposeResult:
         """Compose the status bar."""
         yield Static("[cyan]●[/cyan] No model", id="sb-model")
-        yield Static("│ [green]✓[/green] Ready", id="sb-activity")
-        yield Static("│ Session: 0 tokens", id="sb-tokens")
+        yield Static("[dim]·[/dim] [green]✓[/green] Ready", id="sb-activity")
+        yield Static("[dim]·[/dim] 0 tokens", id="sb-tokens")
         yield Static("", id="sb-provider")
 
     def on_mount(self) -> None:
@@ -108,17 +108,17 @@ class StatusBar(Horizontal):
         widget = self.query_one("#sb-activity", Static)
 
         if self._activity == ActivityState.READY:
-            widget.update("│ [green]✓[/green] Ready")
+            widget.update("[dim]·[/dim] [#9ece6a]✓[/#9ece6a] Ready")
         elif self._activity == ActivityState.ERROR:
-            widget.update("│ [red]✗[/red] Error")
+            widget.update("[dim]·[/dim] [#ff6b6b]✗[/#ff6b6b] Error")
         else:
             spinner = SPINNER_FRAMES[self._spinner_frame]
             state_text = {
-                ActivityState.SENDING: "Sending...",
-                ActivityState.THINKING: "Thinking...",
-                ActivityState.STREAMING: "Receiving...",
-            }.get(self._activity, "Working...")
-            widget.update(f"│ [yellow]{spinner}[/yellow] {state_text}")
+                ActivityState.SENDING: "Sending",
+                ActivityState.THINKING: "Thinking",
+                ActivityState.STREAMING: "Receiving",
+            }.get(self._activity, "Working")
+            widget.update(f"[dim]·[/dim] [#e0af68]{spinner}[/#e0af68] {state_text}")
 
     def _refresh_tokens(self) -> None:
         """Refresh token count display."""
@@ -127,20 +127,20 @@ class StatusBar(Horizontal):
         widget = self.query_one("#sb-tokens", Static)
 
         if self._session_tokens == 0:
-            widget.update("│ Session: 0 tokens")
+            widget.update("[dim]·[/dim] 0 tokens")
             return
 
         # Color based on threshold
         ratio = self._session_tokens / self._warning_threshold if self._warning_threshold > 0 else 0
         if ratio < 0.5:
-            color = "green"
+            color = "#9ece6a"  # green
         elif ratio < 0.8:
-            color = "yellow"
+            color = "#e0af68"  # yellow
         else:
-            color = "red"
+            color = "#ff6b6b"  # red
 
         formatted = f"{self._session_tokens:,}"
-        widget.update(f"│ Session: [{color}]{formatted}[/{color}] tokens")
+        widget.update(f"[dim]·[/dim] [{color}]{formatted}[/{color}] tokens")
 
     def _refresh_provider(self) -> None:
         """Refresh provider display."""
@@ -148,7 +148,7 @@ class StatusBar(Horizontal):
             return
         widget = self.query_one("#sb-provider", Static)
         if self._provider:
-            widget.update(f"│ [dim]{self._provider}[/dim]")
+            widget.update(f"[dim]· {self._provider}[/dim]")
         else:
             widget.update("")
 
