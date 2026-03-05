@@ -6,6 +6,7 @@ from textual.widgets import TextArea, OptionList
 from textual.widgets.option_list import Option
 from textual.message import Message
 from textual.events import Key
+from pathlib import Path
 
 # Slash commands: (command, description, accepts_args)
 SLASH_COMMANDS: list[tuple[str, str, bool]] = [
@@ -133,6 +134,8 @@ class CommandMenu(OptionList):
 class MessageInput(TextArea):
     """Multi-line text input for messages."""
 
+    MAX_HISTORY = 200
+
     class Submitted(Message):
         """Message submitted event."""
 
@@ -145,6 +148,48 @@ class MessageInput(TextArea):
         """Initialize the input."""
         super().__init__(**kwargs)
         self.id = "message-input"
+        self._history: list[str] = []
+        self._history_index: int = -1  # -1 = not browsing history
+        self._draft: str = ""  # saved draft when entering history
+        self._load_history()
+
+    def _history_path(self) -> Path:
+        """Path to the persistent history file."""
+        d = Path.home() / ".foundry-tui"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / "input_history.txt"
+
+    def _load_history(self) -> None:
+        """Load input history from disk."""
+        path = self._history_path()
+        if path.exists():
+            try:
+                lines = path.read_text().splitlines()
+                self._history = lines[-self.MAX_HISTORY:]
+            except Exception:
+                self._history = []
+
+    def _save_history(self) -> None:
+        """Save input history to disk."""
+        try:
+            path = self._history_path()
+            path.write_text("\n".join(self._history[-self.MAX_HISTORY:]) + "\n")
+        except Exception:
+            pass
+
+    def _add_to_history(self, text: str) -> None:
+        """Add an entry to history, deduplicating the most recent."""
+        if self._history and self._history[-1] == text:
+            return
+        self._history.append(text)
+        if len(self._history) > self.MAX_HISTORY:
+            self._history = self._history[-self.MAX_HISTORY:]
+        self._save_history()
+
+    def _reset_history_nav(self) -> None:
+        """Reset history navigation state."""
+        self._history_index = -1
+        self._draft = ""
 
     def _get_command_menu(self) -> CommandMenu | None:
         """Get the command menu widget if it exists."""
@@ -189,6 +234,22 @@ class MessageInput(TextArea):
                 self._accept_completion(menu, submit=True)
                 return
 
+        # History navigation (only when menu is not visible and cursor is on first line)
+        if event.key == "up" and not self._menu_is_visible():
+            cursor_row = self.cursor_location[0]
+            if cursor_row == 0 and self._history:
+                event.stop()
+                event.prevent_default()
+                self._navigate_history(direction=-1)
+                return
+
+        if event.key == "down" and not self._menu_is_visible():
+            if self._history_index >= 0:
+                event.stop()
+                event.prevent_default()
+                self._navigate_history(direction=1)
+                return
+
         if event.key == "enter":
             # Plain enter submits
             event.stop()
@@ -197,6 +258,34 @@ class MessageInput(TextArea):
                 menu.hide()
             self._submit()
         # shift+enter, ctrl+enter etc. will pass through and add newlines
+
+    def _navigate_history(self, direction: int) -> None:
+        """Navigate through input history. direction: -1=older, +1=newer."""
+        if not self._history:
+            return
+
+        if self._history_index == -1:
+            # Entering history mode — save current draft
+            self._draft = self.text
+            self._history_index = len(self._history)
+
+        self._history_index += direction
+
+        if self._history_index < 0:
+            self._history_index = 0
+            return
+
+        if self._history_index >= len(self._history):
+            # Back to the draft
+            self._history_index = -1
+            self.clear()
+            self.insert(self._draft)
+            self._draft = ""
+            return
+
+        # Show the history entry
+        self.clear()
+        self.insert(self._history[self._history_index])
 
     def _accept_completion(self, menu: CommandMenu, submit: bool) -> None:
         """Accept the currently highlighted completion.
@@ -278,6 +367,8 @@ class MessageInput(TextArea):
         """Submit the current input."""
         value = self.text.strip()
         if value:
+            self._add_to_history(value)
+            self._reset_history_nav()
             self.post_message(self.Submitted(value))
             self.clear()
 
