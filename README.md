@@ -109,6 +109,7 @@ The script will:
 | `/clear` or `/c` | Clear chat history |
 | `/copy` | Copy last response to clipboard |
 | `/export [file]` | Export conversation to JSON |
+| `/state [on\|off]` | Toggle server-side conversation state |
 | `/help` or `/h` | Show help |
 | `/quit` or `/q` | Exit |
 
@@ -145,6 +146,8 @@ The script will:
 
 **Serverless:**
 - Mistral Small
+
+> Azure OpenAI models use the Responses API with built-in web search. Azure AI and Serverless models use the Chat Completions API.
 
 ## Project Structure
 
@@ -185,7 +188,7 @@ foundry-tui/
 | `AZURE_AI_API_KEY` | Azure AI Services API key | For DeepSeek/Grok/Kimi |
 | `SERVERLESS_ENDPOINT_*` | Serverless model endpoints | For Mistral |
 | `SERVERLESS_KEY_*` | Serverless model API keys | For Mistral |
-| `TAVILY_API_KEY` | Tavily web search API key ([free tier](https://tavily.com)) | For tool calling |
+| `TAVILY_API_KEY` | Tavily web search API key ([free tier](https://tavily.com)). Only needed for non-OpenAI models (OpenAI models use built-in web search) | For tool calling |
 | `FOUNDRY_TUI_LOG_LEVEL` | Log level (default: `INFO`) | No |
 | `FOUNDRY_TUI_COST_WARNING_THRESHOLD` | Token warning threshold | No |
 
@@ -254,6 +257,9 @@ The app no longer sends max_tokens by default. If you see this error, make sure 
 
 ### 429 Rate Limit Errors
 Azure S0 tier has hard rate limit caps (e.g., 1K TPM on newer models like GPT-5.1) that override your deployment capacity settings. The app auto-retries with a countdown (up to 3 attempts). Press Escape to cancel the retry or Ctrl+C to quit. Check your actual limits in the Azure portal under your deployment's rate limits tab.
+
+### Web search not working on OpenAI models
+OpenAI models use the built-in `web_search_preview` tool via the Responses API. No Tavily API key needed. If you see errors, ensure your Azure OpenAI API supports `api-version=2025-03-01-preview` or later.
 
 ### Memory search not finding results
 If `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` is not set, memory recall uses keyword substring matching. Set this env var and run the setup script to enable semantic search (finds "name" when memory says "Scott lives in San Clemente").
