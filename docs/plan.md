@@ -691,19 +691,253 @@ memories instead of all) when memory count exceeds 10.
 
 ---
 
-## Phase 10: Advanced Features (Future)
+## Phase 10: Responses API Migration
+
+Migrate Azure OpenAI models from Chat Completions API to Responses API.
+Keep CAPI for Azure AI (DeepSeek, Grok, Kimi) and Serverless (Mistral) which don't support RAPI.
+RAPI becomes the default for OpenAI models; CAPI adapter retained as fallback.
+
+### Design Decisions
+
+| Decision | Choice |
+|----------|--------|
+| Scope | Azure OpenAI models only (12 models) |
+| Default API | RAPI for OpenAI models, CAPI for all others |
+| CAPI fallback | Kept but not default — available if RAPI has issues |
+| Web search | `web_search_preview` built-in for OpenAI, Tavily for others |
+| Server-side state | Optional, off by default, user-configurable via `/state` |
+| Streaming | Map RAPI events to existing `StreamChunk`/`ToolCallDelta` types |
+| SDK | Same `openai` package — uses `client.responses.create()` |
+
+---
+
+### 10.1 — Responses API Client
+
+**File:** `api/azure_openai_responses.py` (new)
+
+Create a new adapter alongside the existing `azure_openai.py` (CAPI).
+
+- [ ] **Create `AzureOpenAIResponsesClient` class**
+  - Same constructor pattern as `AzureOpenAIClient` (endpoint, api_key, api_version)
+  - Reuses `AsyncAzureOpenAI` client instance with `base_url` pointing to `/openai/v1/`
+  - HTTP logging hooks (same pattern as CAPI client)
+
+- [ ] **Implement `stream_response()` method**
+  - Signature: `async def stream_response(deployment_name, input, tools, store, previous_response_id) -> AsyncGenerator[StreamChunk, None]`
+  - Call `client.responses.create(model=..., input=..., stream=True, ...)`
+  - Map streaming events to `StreamChunk`:
+    - `response.output_text.delta` → `StreamChunk(content=event.delta)`
+    - `response.function_call_arguments.delta` → `StreamChunk(tool_calls=[ToolCallDelta(...)])`
+    - `response.completed` → `StreamChunk(usage=TokenUsage(...))`
+    - `response.failed` → raise appropriate error
+  - Return `response.id` for `previous_response_id` chaining (attach to final chunk or separate)
+
+- [ ] **Implement `respond()` method** (non-streaming)
+  - Same as `chat()` but using `client.responses.create()` without `stream=True`
+  - Returns `(content, usage, tool_calls, response_id)`
+
+- [ ] **Input format conversion**
+  - Convert existing `Message` list to RAPI `input` format:
+    - `{role: "user", content: "..."}` → same
+    - `{role: "assistant", content: "..."}` → same
+    - `{role: "system", content: "..."}` → `instructions` parameter
+    - Tool results → `{type: "function_call_output", call_id: "...", output: "..."}`
+  - When `previous_response_id` is set, only send the new user message (not full history)
+
+---
+
+### 10.2 — Built-in Web Search (web_search_preview)
+
+**Files:** `tools/__init__.py`, `api/azure_openai_responses.py`
+
+Replace Tavily for Azure OpenAI models with the Responses API built-in `web_search_preview`.
+
+- [ ] **Add `web_search_preview` to RAPI tool definitions**
+  - When building tools for RAPI calls, inject `{"type": "web_search_preview"}` alongside function tools
+  - No API key needed — native to the Responses API
+  - The model decides when to invoke web search (same as Tavily behavior)
+
+- [ ] **Handle web search results in streaming**
+  - RAPI returns web search results as part of the response output items
+  - Parse and display search citations/sources in the UI
+  - Map to existing `ToolCallMessage` widget for consistent UX
+
+- [ ] **Keep Tavily for non-OpenAI models**
+  - `create_default_registry()` still registers Tavily for CAPI-based models
+  - When routing through RAPI, don't send Tavily's function definition — use built-in instead
+  - Tool registry needs awareness of which tools are RAPI-native vs function-based
+
+- [ ] **Update `/tools` command**
+  - Show `web_search (built-in)` for OpenAI models, `web_search (Tavily)` for others
+  - Indicate which tools are native vs custom
+
+---
+
+### 10.3 — Server-Side State Management
+
+**Files:** `app.py`, `storage/persistence.py`, `ui/status_bar.py`, `ui/input.py`
+
+Optional server-managed conversation state using `store=true` + `previous_response_id`.
+
+- [ ] **Add `server_state` config**
+  - Persisted in `~/.foundry-tui/config.json` as `"server_state": false`
+  - Default: off (local state, same as today)
+  - When on: pass `store=true` and chain `previous_response_id`
+
+- [ ] **Track `previous_response_id`**
+  - Store in app state: `self._last_response_id: str | None`
+  - Set after each successful RAPI response
+  - Clear on `/new`, `/clear`, model switch, or conversation load
+  - When set + server_state enabled: only send new user message as `input`
+  - When not set or server_state disabled: send full message history
+
+- [ ] **Implement `/state` command**
+  - `/state` — show current state mode (local/server)
+  - `/state on` — enable server-side state
+  - `/state off` — disable server-side state, clear `previous_response_id`
+  - Add to slash command completions in `ui/input.py`
+
+- [ ] **Status bar indicator**
+  - Show `☁️` icon when server_state is active and `previous_response_id` is set
+  - Show nothing when using local state
+
+- [ ] **Handle state invalidation gracefully**
+  - If RAPI returns error for stale `previous_response_id`, fall back to sending full history
+  - Log the fallback event
+  - On model switch, clear `previous_response_id` (different model can't continue same response chain)
+
+---
+
+### 10.4 — Unified Client Router
+
+**File:** `api/client.py`
+
+Update `ChatClient` to route Azure OpenAI models to the RAPI adapter.
+
+- [ ] **Add RAPI client property**
+  - `azure_openai_responses` → lazy-initialized `AzureOpenAIResponsesClient`
+  - Uses same endpoint/key/version as the CAPI client
+
+- [ ] **Update `stream_chat()` routing**
+  - For `azure_openai` models: call RAPI `stream_response()` by default
+  - Pass `store` and `previous_response_id` parameters through
+  - For `azure_ai` and `serverless`: unchanged (CAPI path)
+
+- [ ] **Handle tool definition splitting**
+  - For RAPI: separate built-in tools (`web_search_preview`) from function tools
+  - For CAPI: pass all tools as function definitions (current behavior)
+  - The router decides which tool format based on deployment type
+
+- [ ] **Return response_id from streaming**
+  - `stream_chat()` needs to communicate the RAPI `response.id` back to the caller
+  - Option: attach to final `StreamChunk` or use a callback/return wrapper
+  - Only set when using RAPI; None for CAPI calls
+
+---
+
+### 10.5 — App Integration
+
+**File:** `app.py`
+
+Wire RAPI into the main message sending flow.
+
+- [ ] **Update `_send_message()`**
+  - Pass `store` and `previous_response_id` to `stream_chat()` when using RAPI
+  - Capture `response_id` from final chunk and store as `self._last_response_id`
+  - Handle RAPI tool calling loop:
+    - RAPI returns tool calls differently (as output items, not `finish_reason="tool_calls"`)
+    - Execute tools same as before, then send results back as `function_call_output` items
+    - Use `previous_response_id` to chain tool result turns
+
+- [ ] **Update conversation state management**
+  - `/new` → clear `_last_response_id`
+  - `/clear` → clear `_last_response_id`
+  - Model switch → clear `_last_response_id`
+  - `/load` conversation → clear `_last_response_id` (can't resume server state from saved conv)
+  - System prompt change → clear `_last_response_id` (instructions changed)
+
+- [ ] **Message format for RAPI**
+  - System prompt → `instructions` parameter (not a message)
+  - When `previous_response_id` set: input = just the new user message
+  - When not set: input = full message history (same as CAPI, different format)
+
+- [ ] **Fallback handling**
+  - If RAPI call fails, optionally retry via CAPI adapter
+  - Log which API was used for each request
+
+---
+
+### 10.6 — Model Catalog Updates
+
+**File:** `models-catalog.json`
+
+- [ ] **Add `api` field to model capabilities**
+  - New field: `"api": "responses"` for OpenAI models that support RAPI
+  - Default/absent = `"completions"` (CAPI)
+  - Used by router to decide which adapter to use
+
+- [ ] **Mark web search support**
+  - New capability: `"web_search": true` for models that support `web_search_preview`
+  - All GPT-4o+ and o4-mini models get this
+  - o1 and o3-mini may not support it (verify)
+
+---
+
+### 10.7 — Documentation & Testing
+
+- [ ] **Update README.md**
+  - Mention Responses API for Azure OpenAI models
+  - Note that web search works without Tavily for OpenAI models
+  - Document `/state` command
+  - Update env vars (Tavily now optional if only using OpenAI models)
+
+- [ ] **Update .env.example**
+  - Mark `TAVILY_API_KEY` as optional (only needed for non-OpenAI web search)
+
+- [ ] **Manual testing checklist**
+  - [ ] GPT-4o streaming via RAPI (text only)
+  - [ ] GPT-4o with web_search_preview
+  - [ ] GPT-4o with memory tools (function calling via RAPI)
+  - [ ] GPT-4o with server-side state enabled
+  - [ ] DeepSeek/Grok via CAPI (unchanged behavior)
+  - [ ] Mistral via Serverless (unchanged behavior)
+  - [ ] Model switch clears response chain
+  - [ ] `/state on` / `/state off` toggle
+  - [ ] Conversation save/load with RAPI
+
+---
+
+### Implementation Order
+
+```
+10.1 (RAPI Client) ──→ 10.4 (Router) ──→ 10.5 (App Integration)
+10.2 (Web Search)  ──→ 10.4 (Router)       ↓
+10.6 (Catalog)     ──→ 10.4 (Router)     10.7 (Docs & Testing)
+10.3 (State Mgmt)  ──→ 10.5 (App)
+```
+
+10.1 + 10.2 + 10.3 + 10.6 can be built in parallel (independent).
+10.4 depends on 10.1, 10.2, 10.6.
+10.5 depends on 10.3, 10.4.
+10.7 is last (after integration).
+
+---
+
+## Phase 11: Advanced Features (Future)
 
 - [ ] Per-model token tracking (cumulative across sessions)
 - [ ] Model provisioning from catalog (in-app)
 - [ ] Side-by-side model comparison
 - [ ] Image/vision support
+- [ ] Code interpreter built-in tool (RAPI)
+- [ ] Computer-use tool (RAPI)
 
 ---
 
 ## Current Status
 
-**Phase**: Phase 9 — Memory ✅ (including 9.6 Semantic Search)
-**Current Task**: None — all phases through 9 complete
+**Phase**: Phase 10 — Responses API Migration
+**Current Task**: Ready for implementation
 **Blockers**: None
 
 ---
@@ -732,3 +966,4 @@ memories instead of all) when memory count exceeds 10.
 | 2026-03-05 | Phase 9.6 plan | Complete | Semantic memory search via Azure OpenAI embeddings |
 | 2026-03-05 | Phase 9.6 | Complete | Semantic memory search with Azure OpenAI text-embedding-3-small embeddings |
 | 2026-03-05 | Memory recall | Complete | Switched from system prompt injection to tool-based recall for better accuracy |
+| 2026-03-05 | Phase 10 plan | Complete | Responses API migration for Azure OpenAI models |

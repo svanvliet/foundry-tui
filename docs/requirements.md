@@ -68,6 +68,60 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 - `/tools` command to list and inspect registered tools
 - Graceful fallback for models without tool support
 
+### 3c. Responses API Migration (Azure OpenAI)
+
+Migrate Azure OpenAI models from the Chat Completions API (`client.chat.completions.create`)
+to the Responses API (`client.responses.create`). This is the recommended API going forward
+for OpenAI models, offering richer streaming, built-in tools, and optional server-side
+conversation state. Azure AI and Serverless models remain on Chat Completions (not supported).
+
+**Scope:**
+- Only Azure OpenAI models (`deployment.type == "azure_openai"`) use the Responses API
+- Azure AI (DeepSeek, Grok, Kimi) and Serverless (Mistral) stay on Chat Completions
+- CAPI adapter kept as fallback for OpenAI models (hidden, not default)
+
+**API Changes:**
+
+| Aspect | Chat Completions (current) | Responses API (new) |
+|--------|---------------------------|---------------------|
+| Endpoint | `client.chat.completions.create()` | `client.responses.create()` |
+| Input format | `messages: [{role, content}]` | `input: [{role, content}]` or string |
+| Streaming events | `chunk.choices[0].delta.content` | `response.output_text.delta` |
+| Tool calls | `chunk.choices[0].delta.tool_calls` | `response.function_call_arguments.delta` |
+| Tool results | User message with `tool_call_id` | `function_call_output` items in input |
+| Usage stats | `stream_options: {include_usage: true}` | `response.completed` event |
+| State mgmt | Manual (send full history each turn) | Optional `previous_response_id` + `store=true` |
+
+**Built-in Web Search:**
+- Replace Tavily with `web_search_preview` built-in tool for Azure OpenAI models
+- No API key needed — web search is native to the Responses API
+- Keep Tavily for Azure AI / Serverless models that still use Chat Completions
+- Transparent to user — `web_search` tool name stays the same
+
+**Server-Side State (Optional):**
+- Configurable via `/state` command or `~/.foundry-tui/config.json`
+- When enabled: `store=true` + chain turns with `previous_response_id`
+- Benefits: reduced token usage (~80% better caching), no need to resend full history
+- When disabled (default): manage conversation state locally as before, `store=false`
+- State stored on OpenAI servers for 30 days when enabled
+- Status bar indicator when server-side state is active
+
+**Streaming Protocol:**
+- RAPI uses event-driven streaming with typed events:
+  - `response.created` — response pipeline started
+  - `response.output_text.delta` — text content chunk
+  - `response.output_text.done` — text section complete
+  - `response.function_call_arguments.delta` — tool call args streaming
+  - `response.function_call_arguments.done` — tool call complete
+  - `response.completed` — final event with usage stats
+  - `response.failed` — error
+- Map these to existing `StreamChunk` / `ToolCallDelta` data types for UI compatibility
+
+**Non-Goals:**
+- No Conversations API (managed server-side state) — just `previous_response_id` chaining
+- No computer-use or code-interpreter built-in tools (future phase)
+- No changes to Azure AI or Serverless adapters
+
 ### 3b. Memory (Persistent User Context)
 
 Models can remember facts about the user across conversations using tool calling.
@@ -185,11 +239,14 @@ The app handles three distinct Azure API patterns:
 - Azure OpenAI automatically caches repeated prompt prefixes for GPT-4o models (~50% cost reduction)
 - Display context usage in status bar
 - Warn when exceeding `FOUNDRY_TUI_COST_WARNING_THRESHOLD` tokens
+- **Responses API (optional)**: Server-side state via `store=true` + `previous_response_id`
+  eliminates resending full history for Azure OpenAI models (up to 80% token savings)
 
 **Cost considerations**:
 - Large context models (GPT-4.1 with 1M tokens, GPT-5 with 256k) can be expensive
 - Status bar shows running token count
 - Optional warning threshold for long conversations
+- Server-side state mode further reduces cost by not resending history
 
 ### Conversation Storage Format
 
@@ -573,6 +630,10 @@ Scripts automatically update `.env` file:
 
 - [Textual Documentation](https://textual.textualize.io/)
 - [Azure OpenAI API Reference](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference)
+- [Azure OpenAI Responses API](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/responses)
+- [OpenAI Responses API Migration Guide](https://developers.openai.com/api/docs/guides/migrate-to-responses)
+- [Responses API Streaming Events](https://developers.openai.com/api/docs/guides/streaming-responses)
+- [Responses API Web Search](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/web-search)
 - [Azure AI Model Inference API](https://learn.microsoft.com/en-us/azure/ai-studio/reference/reference-model-inference-api)
 - [OpenAI Python SDK](https://github.com/openai/openai-python) (works with Azure)
 - [Azure CLI Documentation](https://learn.microsoft.com/en-us/cli/azure/)
