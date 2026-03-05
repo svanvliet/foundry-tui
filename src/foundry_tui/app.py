@@ -727,7 +727,10 @@ class FoundryApp(App):
         self.is_streaming = True
 
         try:
+            import re
+
             iteration = 0
+            max_429_retries = 3
             while iteration < self._max_tool_iterations:
                 iteration += 1
 
@@ -743,65 +746,105 @@ class FoundryApp(App):
                 streaming_msg = await self._start_streaming_message()
                 status_bar.set_thinking()
 
-                # Stream the response (with 429 retry for tool-loop back-to-back calls)
+                # Stream the response with 429 retry (separate from tool iteration count)
                 full_response = ""
                 chunk_count = 0
                 first_chunk = True
                 all_tc_deltas: list[ToolCallDelta] = []
                 stream_usage = None  # Will be set from the final chunk
+                rate_limit_retries = 0
 
-                try:
-                    async for chunk in self.client.stream_chat(
-                        model=self.current_model,
-                        messages=api_messages,
-                        tools=tool_defs,
-                    ):
-                        if chunk.content:
-                            if first_chunk:
-                                status_bar.set_streaming()
-                                first_chunk = False
+                while True:
+                    try:
+                        async for chunk in self.client.stream_chat(
+                            model=self.current_model,
+                            messages=api_messages,
+                            tools=tool_defs,
+                        ):
+                            if chunk.content:
+                                if first_chunk:
+                                    status_bar.set_streaming()
+                                    first_chunk = False
 
-                            full_response += chunk.content
-                            streaming_msg.append(chunk.content)
-                            chunk_count += 1
+                                full_response += chunk.content
+                                streaming_msg.append(chunk.content)
+                                chunk_count += 1
 
-                            if chunk_count % 3 == 0:
-                                streaming_msg.flush()
-                                chat_container = self.query_one(ChatContainer)
-                                chat_container.scroll_to_bottom()
-                                await asyncio.sleep(0)
+                                if chunk_count % 3 == 0:
+                                    streaming_msg.flush()
+                                    chat_container = self.query_one(ChatContainer)
+                                    chat_container.scroll_to_bottom()
+                                    await asyncio.sleep(0)
 
-                        if chunk.tool_calls:
-                            all_tc_deltas.extend(chunk.tool_calls)
+                            if chunk.tool_calls:
+                                all_tc_deltas.extend(chunk.tool_calls)
 
-                        if chunk.usage:
-                            stream_usage = chunk.usage
-                except Exception as rate_err:
-                    error_str = str(rate_err)
-                    if "429" in error_str:
-                        # Parse retry-after from error message
-                        import re
-                        retry_match = re.search(r"retry after (\d+) second", error_str, re.IGNORECASE)
-                        wait_secs = int(retry_match.group(1)) if retry_match else 10
-                        wait_secs = min(wait_secs, 60)  # Cap at 60s
+                            if chunk.usage:
+                                stream_usage = chunk.usage
+                        break  # Stream completed successfully
+                    except Exception as rate_err:
+                        error_str = str(rate_err)
+                        if "429" in error_str and rate_limit_retries < max_429_retries:
+                            rate_limit_retries += 1
 
-                        log_event("Rate limited (429)", model=self.current_model.id, retry_after=wait_secs, iteration=iteration)
+                            # Parse retry-after from error message
+                            retry_match = re.search(r"retry after (\d+) second", error_str, re.IGNORECASE)
+                            wait_secs = int(retry_match.group(1)) if retry_match else 15
+                            wait_secs = min(wait_secs, 90)
 
-                        # Remove the empty streaming message
-                        try:
-                            await streaming_msg.remove()
-                        except Exception:
-                            pass
+                            log_event(
+                                "Rate limited (429)",
+                                model=self.current_model.id,
+                                retry_after=wait_secs,
+                                attempt=f"{rate_limit_retries}/{max_429_retries}",
+                                iteration=iteration,
+                                error=error_str[:300],
+                            )
 
-                        # Show countdown in status bar and wait
-                        for remaining in range(wait_secs, 0, -1):
-                            status_bar.update_activity(f"Rate limited — retrying in {remaining}s")
-                            await asyncio.sleep(1)
+                            # Remove the empty streaming message for a clean retry
+                            try:
+                                await streaming_msg.remove()
+                            except Exception:
+                                pass
 
-                        status_bar.set_sending()
-                        continue  # Retry the same iteration
-                    else:
-                        raise  # Re-raise non-429 errors
+                            # Show countdown in status bar and wait
+                            for remaining in range(wait_secs, 0, -1):
+                                status_bar.update_activity(
+                                    f"⏳ Rate limited — retrying in {remaining}s ({rate_limit_retries}/{max_429_retries})"
+                                )
+                                await asyncio.sleep(1)
+
+                            # Reset for retry (new streaming message, etc.)
+                            streaming_msg = await self._start_streaming_message()
+                            status_bar.set_sending()
+                            full_response = ""
+                            chunk_count = 0
+                            first_chunk = True
+                            all_tc_deltas = []
+                            stream_usage = None
+                            continue  # Retry within the inner while loop
+
+                        elif "429" in error_str:
+                            # Exhausted retries — show error to user
+                            log_event(
+                                "Rate limit retries exhausted",
+                                model=self.current_model.id,
+                                attempts=rate_limit_retries,
+                                error=error_str[:300],
+                            )
+                            try:
+                                await streaming_msg.remove()
+                            except Exception:
+                                pass
+                            await self._add_message(
+                                "error",
+                                f"Rate limited after {rate_limit_retries} retries. "
+                                f"Try again in a minute or switch to a model with higher RPM.",
+                            )
+                            status_bar.set_error()
+                            return  # Exit _send_message entirely
+                        else:
+                            raise  # Re-raise non-429 errors
 
                 # Flush remaining content
                 streaming_msg.flush()
