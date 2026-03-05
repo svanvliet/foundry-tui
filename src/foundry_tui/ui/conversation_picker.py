@@ -35,7 +35,7 @@ class ConversationPicker(ModalScreen):
         max-width: 90%;
         height: auto;
         max-height: 80%;
-        background: $surface !important;
+        background: $surface;
         border: solid $primary;
         padding: 1 2;
     }
