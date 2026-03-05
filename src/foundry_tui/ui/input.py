@@ -13,6 +13,7 @@ SLASH_COMMANDS: list[tuple[str, str, bool]] = [
     ("/models", "Select a different model", True),
     ("/system", "View/set system prompt", True),
     ("/tools", "List registered tools", True),
+    ("/theme", "Change color theme", True),
     ("/load", "Browse saved conversations", False),
     ("/save", "Save current conversation", True),
     ("/new", "Start a new conversation", False),
@@ -28,6 +29,24 @@ SLASH_COMMANDS: list[tuple[str, str, bool]] = [
 STATIC_ARG_COMPLETIONS: dict[str, list[tuple[str, str]]] = {
     "/system": [("clear", "Remove system prompt")],
     "/tools": [("info", "Show tool details")],
+    "/theme": [
+        ("nord", "Arctic, clean"),
+        ("gruvbox", "Retro, warm"),
+        ("tokyo-night", "Modern, cool"),
+        ("dracula", "Dark, vibrant"),
+        ("monokai", "Classic dark"),
+        ("catppuccin-mocha", "Soothing, pastel dark"),
+        ("catppuccin-latte", "Pastel light"),
+        ("solarized-light", "Precision, light"),
+        ("solarized-dark", "Precision, dark"),
+        ("rose-pine", "Natural, muted"),
+        ("textual-dark", "Default dark"),
+        ("textual-light", "Default light"),
+        ("textual-ansi", "Terminal colors"),
+        ("atom-one-dark", "Atom editor dark"),
+        ("atom-one-light", "Atom editor light"),
+        ("flexoki", "Inky, balanced"),
+    ],
 }
 
 

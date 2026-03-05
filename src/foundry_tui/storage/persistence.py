@@ -85,3 +85,19 @@ def set_system_prompt(prompt: str | None) -> None:
     elif "system_prompt" in config:
         del config["system_prompt"]
     save_user_config(config)
+
+
+def get_theme() -> str | None:
+    """Get the saved theme name."""
+    config = load_user_config()
+    return config.get("theme")
+
+
+def set_theme(theme: str | None) -> None:
+    """Save the theme name (None to clear)."""
+    config = load_user_config()
+    if theme:
+        config["theme"] = theme
+    elif "theme" in config:
+        del config["theme"]
+    save_user_config(config)

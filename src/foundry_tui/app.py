@@ -25,8 +25,10 @@ from foundry_tui.storage.persistence import (
     get_last_model_id,
     get_model_rate_limits,
     get_system_prompt,
+    get_theme,
     set_last_model_id,
     set_system_prompt,
+    set_theme,
 )
 from foundry_tui.tools import create_default_registry
 from foundry_tui.tools.registry import ToolRegistry
@@ -42,7 +44,7 @@ class FoundryApp(App):
 
     TITLE = "Foundry TUI"
     CSS_PATH = Path(__file__).parent / "ui" / "styles.tcss"
-    ANSI_COLOR = True  # Preserve ANSI colors for terminal default background
+    theme = "nord"
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+l", "clear_screen", "Clear"),
@@ -118,6 +120,11 @@ class FoundryApp(App):
 
     def on_mount(self) -> None:
         """Handle app mount."""
+        # Apply saved theme
+        saved_theme = get_theme()
+        if saved_theme:
+            self.theme = saved_theme
+
         # Set initial status
         self._update_status_bar_model()
 
@@ -196,6 +203,8 @@ class FoundryApp(App):
             await self._save_current_conversation(args)
         elif cmd in ("/tools", "/tool"):
             await self._handle_tools_command(args)
+        elif cmd in ("/theme",):
+            await self._handle_theme_command(args)
         elif cmd in ("/help", "/h", "/?"):
             await self._show_help()
         else:
@@ -611,6 +620,29 @@ class FoundryApp(App):
         else:
             await self._add_message("error", "Usage: /tools, /tools info <name>")
 
+    async def _handle_theme_command(self, args: str) -> None:
+        """Handle the /theme command."""
+        available = sorted(self.available_themes)
+
+        if not args:
+            lines = [f"[bold]Current theme:[/bold] {self.theme}\n"]
+            lines.append("[bold]Available themes:[/bold]\n")
+            for name in available:
+                marker = " [green]◀[/green]" if name == self.theme else ""
+                lines.append(f"  {name}{marker}")
+            lines.append("\nUsage: /theme <name>")
+            await self._add_message("system", "\n".join(lines))
+            return
+
+        name = args.strip().lower()
+        if name not in available:
+            await self._add_message("error", f"Unknown theme: {name}\nUse /theme to see available themes.")
+            return
+
+        self.theme = name
+        set_theme(name)
+        await self._add_message("system", f"Theme changed to [bold]{name}[/bold].")
+
     async def _show_help(self) -> None:
         """Show help message."""
         help_text = (
@@ -618,6 +650,7 @@ class FoundryApp(App):
             "  /models, /m       - Select a different model\n"
             "  /system [prompt]  - View/set system prompt (/system clear to remove)\n"
             "  /tools            - List registered tools (/tools info <name> for details)\n"
+            "  /theme [name]     - View/change color theme\n"
             "  /load, /convs     - Browse and load saved conversations\n"
             "  /save [title]     - Save current conversation with optional title\n"
             "  /new, /n          - Start a new conversation\n"

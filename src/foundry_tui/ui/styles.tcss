@@ -4,23 +4,6 @@ Screen {
     layout: grid;
     grid-size: 1;
     grid-rows: 1fr auto auto;
-    background: ansi_default;
-}
-
-Static {
-    background: ansi_default;
-}
-
-Vertical {
-    background: ansi_default;
-}
-
-Horizontal {
-    background: ansi_default;
-}
-
-ScrollableContainer {
-    background: ansi_default;
 }
 
 /* Chat message area */
@@ -95,22 +78,18 @@ ScrollableContainer {
     margin-bottom: 1;
     padding: 0 1;
     border-left: outer $accent;
-    background: ansi_default;
 }
 
 .tool-call-message CollapsibleTitle {
     color: $accent;
-    background: ansi_default;
     padding: 0 1;
 }
 
 .tool-call-message Contents {
     padding: 0 2;
-    background: ansi_default;
 }
 
 .tool-call-message Contents Static {
-    background: ansi_default;
     color: $text-muted;
 }
 
@@ -126,21 +105,17 @@ ScrollableContainer {
     margin-bottom: 1;
     padding: 0 1;
     border-left: outer $warning;
-    background: ansi_default;
 }
 
 .thinking-message CollapsibleTitle {
     color: $warning;
-    background: ansi_default;
     padding: 0 1;
 }
 
 .thinking-message Contents {
     padding: 0 2;
-    background: ansi_default;
 }
 
 .thinking-message Contents Static {
-    background: ansi_default;
     color: $text-muted;
 }
