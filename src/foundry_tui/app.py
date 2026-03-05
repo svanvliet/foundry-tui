@@ -44,7 +44,6 @@ class FoundryApp(App):
 
     TITLE = "Foundry TUI"
     CSS_PATH = Path(__file__).parent / "ui" / "styles.tcss"
-    theme = "nord"
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
         ("ctrl+l", "clear_screen", "Clear"),
@@ -54,6 +53,7 @@ class FoundryApp(App):
     def __init__(self, config: Config):
         """Initialize the application."""
         super().__init__()
+        self.theme = "nord"  # Set via reactive, not class variable
         self.config = config
         self.current_model = self._get_initial_model()
         self.messages: list[Message] = []
