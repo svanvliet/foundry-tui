@@ -1,5 +1,13 @@
 # Foundry TUI - Azure Setup Script (PowerShell)
 # Interactive guided setup for deploying Azure AI resources
+#
+# Usage:
+#   .\scripts\setup.ps1              # Full interactive setup
+#   .\scripts\setup.ps1 -OnlySearch   # Add Tavily web search to existing setup
+
+param(
+    [switch]$OnlySearch
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -19,12 +27,21 @@ $DefaultLocation = "eastus"
 
 Clear-Host
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Blue
-Write-Host "║           Foundry TUI - Azure Setup                          ║" -ForegroundColor Blue
-Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Blue
-Write-Host ""
-Write-Host "This script will guide you through deploying the Azure resources"
-Write-Host "needed to run Foundry TUI."
+if ($OnlySearch) {
+    Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Blue
+    Write-Host "║       Foundry TUI - Add Web Search                           ║" -ForegroundColor Blue
+    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Blue
+    Write-Host ""
+    Write-Host "This will configure Tavily web search for tool calling"
+    Write-Host "in your existing Foundry TUI setup."
+} else {
+    Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Blue
+    Write-Host "║           Foundry TUI - Azure Setup                          ║" -ForegroundColor Blue
+    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Blue
+    Write-Host ""
+    Write-Host "This script will guide you through deploying the Azure resources"
+    Write-Host "needed to run Foundry TUI."
+}
 Write-Host ""
 Write-Dim "You will need:"
 Write-Dim "  • Azure CLI installed and authenticated"
@@ -83,19 +100,49 @@ if (-not (Confirm-Action "Use this subscription?")) {
 
 Write-Header "Resource Group Configuration"
 
-$ResourceGroup = Read-HostWithDefault "Resource group name" $DefaultResourceGroup
-$Location = Read-HostWithDefault "Location" $DefaultLocation
+if ($OnlySearch) {
+    # In search-only mode, skip resource group — we just need the .env file
+    Set-Location $ProjectRoot
+    $ResourceGroup = $null
+    if (Test-Path ".env") {
+        $envContent = Get-Content ".env" | Where-Object { $_ -match "^AZURE_RESOURCE_GROUP=" }
+        if ($envContent) {
+            $ResourceGroup = ($envContent -split "=", 2)[1]
+        }
+    }
 
-# Check if resource group exists
-$rgExists = az group show --name $ResourceGroup 2>$null
-if ($LASTEXITCODE -eq 0) {
-    Write-Info "Resource group '$ResourceGroup' already exists"
+    if (-not $ResourceGroup) {
+        $ResourceGroup = Read-HostWithDefault "Resource group name" $DefaultResourceGroup
+    } else {
+        Write-Info "Using resource group from .env: $ResourceGroup"
+    }
+
+    $rgExists = az group show --name $ResourceGroup 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Resource group '$ResourceGroup' not found. Run full setup first."
+        exit 1
+    }
+} else {
+    $ResourceGroup = Read-HostWithDefault "Resource group name" $DefaultResourceGroup
+    $Location = Read-HostWithDefault "Location" $DefaultLocation
+
+    # Check if resource group exists
+    $rgExists = az group show --name $ResourceGroup 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Info "Resource group '$ResourceGroup' already exists"
+    }
+    else {
+        Write-Info "Creating resource group '$ResourceGroup' in '$Location'..."
+        az group create --name $ResourceGroup --location $Location --output none
+        Write-Success "Resource group created"
+    }
 }
-else {
-    Write-Info "Creating resource group '$ResourceGroup' in '$Location'..."
-    az group create --name $ResourceGroup --location $Location --output none
-    Write-Success "Resource group created"
-}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Model Selection & Deployment (skip in -OnlySearch mode)
+# ─────────────────────────────────────────────────────────────────────────────
+
+if (-not $OnlySearch) {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model Selection
@@ -294,6 +341,47 @@ if ($DeployAI) {
     Write-Dim "  Visit: https://ai.azure.com"
 }
 
+}  # end of -OnlySearch skip
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 4: Web Search (Optional - for tool calling)
+# ─────────────────────────────────────────────────────────────────────────────
+
+Write-Host ""
+Write-Header "Web Search for Tool Calling"
+Write-Host ""
+Write-Host "Foundry TUI supports tool calling with web search via Tavily."
+Write-Host "Models that support tool calling can search the web during conversations."
+Write-Host ""
+Write-Dim "Get a free API key at: https://tavily.com (1,000 searches/month free)"
+Write-Host ""
+
+$DeploySearch = $false
+# In -OnlySearch mode, skip the confirmation — that's the whole point
+if ($OnlySearch -or (Confirm-Action "Would you like to enable web search for tool calling?")) {
+    $DeploySearch = $true
+
+    Set-Location $ProjectRoot
+    Backup-EnvFile
+
+    Write-Host ""
+    Write-Host "Enter your Tavily API key (starts with " -NoNewline
+    Write-Host "tvly-" -ForegroundColor Cyan -NoNewline
+    Write-Host "):"
+    Write-Dim "Get one free at: https://tavily.com"
+    $TavilyKey = Read-Host ">"
+
+    if ([string]::IsNullOrWhiteSpace($TavilyKey)) {
+        Write-Warning "No API key entered — skipping web search"
+        $DeploySearch = $false
+    } else {
+        Update-EnvFile "TAVILY_API_KEY" $TavilyKey
+        Write-Success "Tavily web search configured for tool calling"
+    }
+} else {
+    Write-Dim "Skipping web search — tool calling will work without it"
+}
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
@@ -310,6 +398,9 @@ if ($DeployOpenAI) {
 if ($DeployAI) {
     Write-Host "  • Azure AI Services endpoint and key"
     Write-Host "  • Models: $($AIModels -join ', ') (deploy via portal)"
+}
+if ($DeploySearch) {
+    Write-Host "  • Tavily API key (web search tool calling enabled)"
 }
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor White

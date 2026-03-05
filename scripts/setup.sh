@@ -1,6 +1,10 @@
 #!/bin/bash
 # Foundry TUI - Azure Setup Script
 # Interactive guided setup for deploying Azure AI resources
+#
+# Usage:
+#   ./scripts/setup.sh              # Full interactive setup
+#   ./scripts/setup.sh --only-search  # Add Tavily web search to existing setup
 
 set -e
 
@@ -14,18 +18,35 @@ source "$SCRIPT_DIR/lib/common.sh"
 DEFAULT_RESOURCE_GROUP="foundry-tui-rg"
 DEFAULT_LOCATION="eastus"
 
+# Parse arguments
+ONLY_SEARCH=false
+for arg in "$@"; do
+    case $arg in
+        --only-search) ONLY_SEARCH=true ;;
+    esac
+done
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Welcome
 # ─────────────────────────────────────────────────────────────────────────────
 
 clear
 echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║           ${CYAN}Foundry TUI - Azure Setup${NC}${BOLD}                         ║${NC}"
-echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
-echo ""
-echo "This script will guide you through deploying the Azure resources"
-echo "needed to run Foundry TUI."
+if [[ "$ONLY_SEARCH" == true ]]; then
+    echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}║       ${CYAN}Foundry TUI - Add Web Search${NC}${BOLD}                           ║${NC}"
+    echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "This will configure Tavily web search for tool calling"
+    echo "in your existing Foundry TUI setup."
+else
+    echo -e "${BOLD}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}║           ${CYAN}Foundry TUI - Azure Setup${NC}${BOLD}                         ║${NC}"
+    echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    echo "This script will guide you through deploying the Azure resources"
+    echo "needed to run Foundry TUI."
+fi
 echo ""
 print_dim "You will need:"
 print_dim "  • Azure CLI installed and authenticated"
@@ -86,17 +107,43 @@ fi
 
 print_header "Resource Group Configuration"
 
-prompt_with_default "Resource group name" "$DEFAULT_RESOURCE_GROUP" RESOURCE_GROUP
-prompt_with_default "Location" "$DEFAULT_LOCATION" LOCATION
+if [[ "$ONLY_SEARCH" == true ]]; then
+    # In search-only mode, skip resource group — we just need the .env file
+    cd "$PROJECT_ROOT"
+    if [[ -f ".env" ]]; then
+        eval "$(grep -E '^AZURE_RESOURCE_GROUP=' .env)"
+        RESOURCE_GROUP="${AZURE_RESOURCE_GROUP:-}"
+    fi
 
-# Check if resource group exists
-if az group show --name "$RESOURCE_GROUP" &> /dev/null; then
-    print_info "Resource group '$RESOURCE_GROUP' already exists"
+    if [[ -z "$RESOURCE_GROUP" ]]; then
+        prompt_with_default "Resource group name" "$DEFAULT_RESOURCE_GROUP" RESOURCE_GROUP
+    else
+        print_info "Using resource group from .env: ${BOLD}$RESOURCE_GROUP${NC}"
+    fi
+
+    if ! az group show --name "$RESOURCE_GROUP" &> /dev/null; then
+        print_error "Resource group '$RESOURCE_GROUP' not found. Run full setup first."
+        exit 1
+    fi
 else
-    print_info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
-    az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
-    print_success "Resource group created"
+    prompt_with_default "Resource group name" "$DEFAULT_RESOURCE_GROUP" RESOURCE_GROUP
+    prompt_with_default "Location" "$DEFAULT_LOCATION" LOCATION
+
+    # Check if resource group exists
+    if az group show --name "$RESOURCE_GROUP" &> /dev/null; then
+        print_info "Resource group '$RESOURCE_GROUP' already exists"
+    else
+        print_info "Creating resource group '$RESOURCE_GROUP' in '$LOCATION'..."
+        az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
+        print_success "Resource group created"
+    fi
 fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Model Selection & Deployment (skip in --only-search mode)
+# ─────────────────────────────────────────────────────────────────────────────
+
+if [[ "$ONLY_SEARCH" != true ]]; then
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model Selection
@@ -304,6 +351,45 @@ if [[ "$DEPLOY_AI" == true ]]; then
     print_dim "  Visit: https://ai.azure.com"
 fi
 
+fi  # end of --only-search skip
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 4: Web Search (Optional - for tool calling)
+# ─────────────────────────────────────────────────────────────────────────────
+
+echo ""
+print_header "Web Search for Tool Calling"
+echo ""
+echo "Foundry TUI supports tool calling with web search via Tavily."
+echo "Models that support tool calling can search the web during conversations."
+echo ""
+print_dim "Get a free API key at: https://tavily.com (1,000 searches/month free)"
+echo ""
+
+DEPLOY_SEARCH=false
+# In --only-search mode, skip the confirmation — that's the whole point
+if [[ "$ONLY_SEARCH" == true ]] || confirm "Would you like to enable web search for tool calling?"; then
+    DEPLOY_SEARCH=true
+
+    cd "$PROJECT_ROOT"
+    backup_env ".env"
+
+    echo ""
+    echo -e "Enter your Tavily API key (starts with ${CYAN}tvly-${NC}):"
+    echo -e "${DIM}Get one free at: https://tavily.com${NC}"
+    read -rp "> " TAVILY_KEY
+
+    if [[ -z "$TAVILY_KEY" ]]; then
+        print_warning "No API key entered — skipping web search"
+        DEPLOY_SEARCH=false
+    else
+        update_env "TAVILY_API_KEY" "$TAVILY_KEY"
+        print_success "Tavily web search configured for tool calling"
+    fi
+else
+    print_dim "Skipping web search — tool calling will work without it"
+fi
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Summary
 # ─────────────────────────────────────────────────────────────────────────────
@@ -320,6 +406,9 @@ fi
 if [[ "$DEPLOY_AI" == true ]]; then
     echo "  • Azure AI Services endpoint and key"
     echo "  • Models: ${AI_MODELS[*]} (deploy via portal)"
+fi
+if [[ "$DEPLOY_SEARCH" == true ]]; then
+    echo "  • Tavily API key (web search tool calling enabled)"
 fi
 echo ""
 echo -e "${BOLD}Next steps:${NC}"

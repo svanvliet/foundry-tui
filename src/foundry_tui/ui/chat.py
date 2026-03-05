@@ -1,9 +1,11 @@
 """Chat display components."""
 
+import json
+
 from rich.markdown import Markdown
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Vertical
-from textual.widgets import Static
+from textual.widgets import Static, Collapsible
 from textual.reactive import reactive
 
 
@@ -42,6 +44,87 @@ class ChatMessage(Static):
             "system": "System",
         }
         self.border_title = role_titles.get(role, role.title())
+
+
+class ToolCallMessage(Collapsible):
+    """Collapsible widget showing a tool call and its result."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        arguments: str,
+        result: str | None = None,
+        error: bool = False,
+        **kwargs,
+    ):
+        """Initialize a tool call display.
+
+        Args:
+            tool_name: Name of the tool invoked.
+            arguments: JSON string of arguments.
+            result: Tool execution result (None while pending).
+            error: Whether the result is an error.
+        """
+        self._tool_name = tool_name
+        self._arguments = arguments
+        self._result = result
+        self._error = error
+
+        # Format a short argument summary for the title
+        arg_summary = self._format_arg_summary(arguments)
+        title = f"⚡ {tool_name}({arg_summary})"
+
+        # Build the body content
+        body = self._build_body()
+
+        super().__init__(Static(body, markup=False), title=title, collapsed=True, **kwargs)
+        self.add_class("tool-call-message")
+        if error:
+            self.add_class("tool-call-error")
+
+    def _format_arg_summary(self, arguments: str) -> str:
+        """Create a compact summary of arguments for the title."""
+        try:
+            args = json.loads(arguments) if arguments else {}
+            parts = []
+            for k, v in args.items():
+                val = json.dumps(v) if not isinstance(v, str) else f'"{v}"'
+                if len(val) > 40:
+                    val = val[:37] + '..."'
+                parts.append(val)
+            return ", ".join(parts)
+        except (json.JSONDecodeError, TypeError):
+            return arguments[:50] if arguments else ""
+
+    def _build_body(self) -> str:
+        """Build the body text with arguments and result."""
+        lines = ["Arguments:"]
+        try:
+            formatted = json.dumps(json.loads(self._arguments), indent=2)
+            lines.append(formatted)
+        except (json.JSONDecodeError, TypeError):
+            lines.append(self._arguments or "(none)")
+
+        lines.append("")
+        if self._result is not None:
+            label = "Error:" if self._error else "Result:"
+            lines.append(label)
+            lines.append(self._result)
+        else:
+            lines.append("⏳ Executing...")
+
+        return "\n".join(lines)
+
+    def set_result(self, result: str, error: bool = False) -> None:
+        """Update the tool call with its execution result."""
+        self._result = result
+        self._error = error
+        if error:
+            self.add_class("tool-call-error")
+
+        # Update body content
+        body_widget = self.query_one(Static)
+        body_widget.update(self._build_body())
 
 
 class StreamingMessage(Static):

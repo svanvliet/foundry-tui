@@ -122,6 +122,7 @@ if (Confirm-Action "Clear Azure credentials from .env file?") {
         $content = $content -replace '(?m)^AZURE_OPENAI_', '#AZURE_OPENAI_'
         $content = $content -replace '(?m)^AZURE_AI_', '#AZURE_AI_'
         $content = $content -replace '(?m)^SERVERLESS_', '#SERVERLESS_'
+        $content = $content -replace '(?m)^TAVILY_', '#TAVILY_'
         Set-Content -Path ".env" -Value $content.TrimEnd()
         Write-Success "Credentials commented out in .env"
     }

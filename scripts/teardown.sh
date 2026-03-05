@@ -45,7 +45,7 @@ cd "$PROJECT_ROOT"
 
 if [[ -f ".env" ]]; then
     # shellcheck disable=SC1091
-    source <(grep -E '^AZURE_(SUBSCRIPTION_ID|RESOURCE_GROUP)=' .env)
+    eval "$(grep -E '^AZURE_(SUBSCRIPTION_ID|RESOURCE_GROUP)=' .env)"
 fi
 
 if [[ -z "$AZURE_RESOURCE_GROUP" ]]; then
@@ -126,10 +126,12 @@ if confirm "Clear Azure credentials from .env file?"; then
         sed -i '' 's/^AZURE_OPENAI_/#AZURE_OPENAI_/' .env 2>/dev/null || true
         sed -i '' 's/^AZURE_AI_/#AZURE_AI_/' .env 2>/dev/null || true
         sed -i '' 's/^SERVERLESS_/#SERVERLESS_/' .env 2>/dev/null || true
+        sed -i '' 's/^TAVILY_/#TAVILY_/' .env 2>/dev/null || true
     else
         sed -i 's/^AZURE_OPENAI_/#AZURE_OPENAI_/' .env 2>/dev/null || true
         sed -i 's/^AZURE_AI_/#AZURE_AI_/' .env 2>/dev/null || true
         sed -i 's/^SERVERLESS_/#SERVERLESS_/' .env 2>/dev/null || true
+        sed -i 's/^TAVILY_/#TAVILY_/' .env 2>/dev/null || true
     fi
     print_success "Credentials commented out in .env"
 fi

@@ -1,9 +1,37 @@
 """Azure OpenAI API client with streaming support."""
 
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from openai import AsyncAzureOpenAI
+
+
+@dataclass
+class ToolCallFunction:
+    """Function details within a tool call."""
+
+    name: str
+    arguments: str  # JSON string
+
+
+@dataclass
+class ToolCall:
+    """A tool call from the model."""
+
+    id: str
+    type: str  # "function"
+    function: ToolCallFunction
+
+
+@dataclass
+class ToolCallDelta:
+    """A partial tool call from a streaming chunk."""
+
+    index: int
+    id: str | None = None
+    type: str | None = None
+    function_name: str | None = None
+    function_arguments: str | None = None
 
 
 @dataclass
@@ -12,6 +40,7 @@ class StreamChunk:
 
     content: str
     finish_reason: str | None = None
+    tool_calls: list[ToolCallDelta] | None = None
 
 
 @dataclass
@@ -28,7 +57,33 @@ class Message:
     """A chat message."""
 
     role: str
-    content: str
+    content: str | None = ""
+    tool_calls: list[ToolCall] | None = None
+    tool_call_id: str | None = None
+    name: str | None = None
+
+    def to_api_dict(self) -> dict:
+        """Convert to dict for API calls, including tool fields when present."""
+        d: dict = {"role": self.role}
+        if self.content is not None:
+            d["content"] = self.content
+        if self.tool_calls:
+            d["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in self.tool_calls
+            ]
+        if self.tool_call_id:
+            d["tool_call_id"] = self.tool_call_id
+        if self.name:
+            d["name"] = self.name
+        return d
 
 
 class AzureOpenAIClient:
@@ -53,25 +108,27 @@ class AzureOpenAIClient:
         deployment_name: str,
         messages: list[Message],
         max_tokens: int | None = None,
+        tools: list[dict] | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """Stream a chat completion.
 
         Yields StreamChunk objects with content as it arrives.
         The final chunk will have finish_reason set.
+        When the model invokes tools, chunks carry tool_calls deltas
+        and the final chunk has finish_reason="tool_calls".
         """
-        # Convert messages to API format
-        api_messages = [{"role": m.role, "content": m.content} for m in messages]
+        api_messages = [m.to_api_dict() for m in messages]
 
-        # Build kwargs - use max_completion_tokens for newer models
         kwargs = {
             "model": deployment_name,
             "messages": api_messages,
             "stream": True,
         }
 
-        # Use max_completion_tokens (newer API) instead of max_tokens
         if max_tokens:
             kwargs["max_completion_tokens"] = max_tokens
+        if tools:
+            kwargs["tools"] = tools
 
         stream = await self.client.chat.completions.create(**kwargs)
 
@@ -79,26 +136,45 @@ class AzureOpenAIClient:
             if chunk.choices and len(chunk.choices) > 0:
                 choice = chunk.choices[0]
                 delta = choice.delta
-
-                content = delta.content if delta and delta.content else ""
                 finish_reason = choice.finish_reason
 
-                if content or finish_reason:
-                    yield StreamChunk(content=content, finish_reason=finish_reason)
+                content = delta.content if delta and delta.content else ""
+
+                # Parse tool call deltas
+                tc_deltas: list[ToolCallDelta] | None = None
+                if delta and delta.tool_calls:
+                    tc_deltas = []
+                    for tc in delta.tool_calls:
+                        tc_deltas.append(
+                            ToolCallDelta(
+                                index=tc.index,
+                                id=tc.id,
+                                type=tc.type,
+                                function_name=tc.function.name if tc.function else None,
+                                function_arguments=tc.function.arguments if tc.function else None,
+                            )
+                        )
+
+                if content or finish_reason or tc_deltas:
+                    yield StreamChunk(
+                        content=content,
+                        finish_reason=finish_reason,
+                        tool_calls=tc_deltas,
+                    )
 
     async def chat(
         self,
         deployment_name: str,
         messages: list[Message],
         max_tokens: int | None = None,
-    ) -> tuple[str, TokenUsage | None]:
+        tools: list[dict] | None = None,
+    ) -> tuple[str, TokenUsage | None, list[ToolCall] | None]:
         """Get a non-streaming chat completion.
 
-        Returns the full response content and token usage.
+        Returns (content, token_usage, tool_calls).
         """
-        api_messages = [{"role": m.role, "content": m.content} for m in messages]
+        api_messages = [m.to_api_dict() for m in messages]
 
-        # Build kwargs - use max_completion_tokens for newer models
         kwargs = {
             "model": deployment_name,
             "messages": api_messages,
@@ -107,10 +183,28 @@ class AzureOpenAIClient:
 
         if max_tokens:
             kwargs["max_completion_tokens"] = max_tokens
+        if tools:
+            kwargs["tools"] = tools
 
         response = await self.client.chat.completions.create(**kwargs)
 
-        content = response.choices[0].message.content or ""
+        msg = response.choices[0].message
+        content = msg.content or ""
+
+        # Extract tool calls if present
+        tool_calls: list[ToolCall] | None = None
+        if msg.tool_calls:
+            tool_calls = [
+                ToolCall(
+                    id=tc.id,
+                    type=tc.type,
+                    function=ToolCallFunction(
+                        name=tc.function.name,
+                        arguments=tc.function.arguments,
+                    ),
+                )
+                for tc in msg.tool_calls
+            ]
 
         usage = None
         if response.usage:
@@ -120,4 +214,4 @@ class AzureOpenAIClient:
                 total_tokens=response.usage.total_tokens,
             )
 
-        return content, usage
+        return content, usage, tool_calls

@@ -56,7 +56,7 @@ class Conversation:
     model_name: str
     provider: str
     system_prompt: str | None
-    messages: list[dict[str, str]]
+    messages: list[dict[str, Any]]
     created_at: datetime
     updated_at: datetime
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -96,7 +96,7 @@ class Conversation:
         """Get a preview of the conversation (first user message)."""
         for msg in self.messages:
             if msg.get("role") == "user":
-                content = msg.get("content", "")
+                content = msg.get("content", "") or ""
                 return content[:50] + "..." if len(content) > 50 else content
         return ""
 
@@ -106,7 +106,7 @@ def generate_conversation_id() -> str:
     return f"conv_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
 
-def generate_title(messages: list[dict[str, str]]) -> str:
+def generate_title(messages: list[dict[str, Any]]) -> str:
     """Generate a title from the first user message."""
     for msg in messages:
         if msg.get("role") == "user":

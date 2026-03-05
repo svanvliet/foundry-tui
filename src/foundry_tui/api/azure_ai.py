@@ -9,7 +9,14 @@ from collections.abc import AsyncGenerator
 
 import httpx
 
-from foundry_tui.api.azure_openai import Message, StreamChunk, TokenUsage
+from foundry_tui.api.azure_openai import (
+    Message,
+    StreamChunk,
+    ToolCall,
+    ToolCallDelta,
+    ToolCallFunction,
+    TokenUsage,
+)
 
 
 class AzureAIClient:
@@ -30,18 +37,20 @@ class AzureAIClient:
         deployment_name: str,
         messages: list[Message],
         max_tokens: int | None = None,
+        tools: list[dict] | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
         """Stream a chat completion."""
-        # Azure AI Model Inference API path (not Azure OpenAI path)
         url = f"{self.endpoint}/models/chat/completions?api-version=2024-05-01-preview"
 
-        payload = {
-            "messages": [{"role": m.role, "content": m.content} for m in messages],
+        payload: dict = {
+            "messages": [m.to_api_dict() for m in messages],
             "model": deployment_name,
             "stream": True,
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens
+        if tools:
+            payload["tools"] = tools
 
         headers = {
             "Content-Type": "application/json",
@@ -65,8 +74,28 @@ class AzureAIClient:
                             content = delta.get("content", "")
                             finish_reason = choice.get("finish_reason")
 
-                            if content or finish_reason:
-                                yield StreamChunk(content=content, finish_reason=finish_reason)
+                            # Parse tool call deltas
+                            tc_deltas: list[ToolCallDelta] | None = None
+                            if delta.get("tool_calls"):
+                                tc_deltas = []
+                                for tc in delta["tool_calls"]:
+                                    fn = tc.get("function", {})
+                                    tc_deltas.append(
+                                        ToolCallDelta(
+                                            index=tc.get("index", 0),
+                                            id=tc.get("id"),
+                                            type=tc.get("type"),
+                                            function_name=fn.get("name"),
+                                            function_arguments=fn.get("arguments"),
+                                        )
+                                    )
+
+                            if content or finish_reason or tc_deltas:
+                                yield StreamChunk(
+                                    content=content,
+                                    finish_reason=finish_reason,
+                                    tool_calls=tc_deltas,
+                                )
                     except json.JSONDecodeError:
                         continue
 
@@ -75,17 +104,20 @@ class AzureAIClient:
         deployment_name: str,
         messages: list[Message],
         max_tokens: int | None = None,
-    ) -> tuple[str, TokenUsage | None]:
+        tools: list[dict] | None = None,
+    ) -> tuple[str, TokenUsage | None, list[ToolCall] | None]:
         """Get a non-streaming chat completion."""
         url = f"{self.endpoint}/models/chat/completions?api-version=2024-05-01-preview"
 
-        payload = {
-            "messages": [{"role": m.role, "content": m.content} for m in messages],
+        payload: dict = {
+            "messages": [m.to_api_dict() for m in messages],
             "model": deployment_name,
             "stream": False,
         }
         if max_tokens:
             payload["max_tokens"] = max_tokens
+        if tools:
+            payload["tools"] = tools
 
         headers = {
             "Content-Type": "application/json",
@@ -96,7 +128,23 @@ class AzureAIClient:
         response.raise_for_status()
 
         data = response.json()
-        content = data["choices"][0]["message"]["content"]
+        msg = data["choices"][0]["message"]
+        content = msg.get("content") or ""
+
+        # Extract tool calls
+        tool_calls: list[ToolCall] | None = None
+        if msg.get("tool_calls"):
+            tool_calls = [
+                ToolCall(
+                    id=tc["id"],
+                    type=tc.get("type", "function"),
+                    function=ToolCallFunction(
+                        name=tc["function"]["name"],
+                        arguments=tc["function"]["arguments"],
+                    ),
+                )
+                for tc in msg["tool_calls"]
+            ]
 
         usage = None
         if "usage" in data:
@@ -106,7 +154,7 @@ class AzureAIClient:
                 total_tokens=data["usage"]["total_tokens"],
             )
 
-        return content, usage
+        return content, usage, tool_calls
 
     async def close(self) -> None:
         """Close the client."""

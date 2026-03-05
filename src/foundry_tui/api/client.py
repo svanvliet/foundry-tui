@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
 from foundry_tui.api.azure_ai import AzureAIClient
-from foundry_tui.api.azure_openai import AzureOpenAIClient, Message, StreamChunk, TokenUsage
+from foundry_tui.api.azure_openai import AzureOpenAIClient, Message, StreamChunk, TokenUsage, ToolCall
 from foundry_tui.api.serverless import ServerlessClient
 from foundry_tui.config import Config
 from foundry_tui.models import DeploymentType, Model, ServerlessDeployment
@@ -63,15 +63,21 @@ class ChatClient:
         model: Model,
         messages: list[Message],
         max_tokens: int | None = None,
+        tools: list[dict] | None = None,
     ) -> AsyncGenerator[StreamChunk, None]:
-        """Stream a chat completion using the appropriate backend."""
+        """Stream a chat completion using the appropriate backend.
+
+        Tools are only passed if the model supports them.
+        """
         deployment_type = model.deployment_type
+        effective_tools = tools if (tools and model.capabilities.tools) else None
 
         if deployment_type == DeploymentType.AZURE_OPENAI:
             async for chunk in self.azure_openai.stream_chat(
                 deployment_name=model.deployment.deployment_name,
                 messages=messages,
                 max_tokens=max_tokens,
+                tools=effective_tools,
             ):
                 yield chunk
 
@@ -80,6 +86,7 @@ class ChatClient:
                 deployment_name=model.deployment.deployment_name,
                 messages=messages,
                 max_tokens=max_tokens,
+                tools=effective_tools,
             ):
                 yield chunk
 
@@ -88,6 +95,7 @@ class ChatClient:
             async for chunk in client.stream_chat(
                 messages=messages,
                 max_tokens=max_tokens,
+                tools=effective_tools,
             ):
                 yield chunk
 
@@ -99,15 +107,18 @@ class ChatClient:
         model: Model,
         messages: list[Message],
         max_tokens: int | None = None,
-    ) -> tuple[str, TokenUsage | None]:
+        tools: list[dict] | None = None,
+    ) -> tuple[str, TokenUsage | None, list[ToolCall] | None]:
         """Get a non-streaming chat completion."""
         deployment_type = model.deployment_type
+        effective_tools = tools if (tools and model.capabilities.tools) else None
 
         if deployment_type == DeploymentType.AZURE_OPENAI:
             return await self.azure_openai.chat(
                 deployment_name=model.deployment.deployment_name,
                 messages=messages,
                 max_tokens=max_tokens,
+                tools=effective_tools,
             )
 
         elif deployment_type == DeploymentType.AZURE_AI:
@@ -115,6 +126,7 @@ class ChatClient:
                 deployment_name=model.deployment.deployment_name,
                 messages=messages,
                 max_tokens=max_tokens,
+                tools=effective_tools,
             )
 
         elif deployment_type == DeploymentType.SERVERLESS:
@@ -122,6 +134,7 @@ class ChatClient:
             return await client.chat(
                 messages=messages,
                 max_tokens=max_tokens,
+                tools=effective_tools,
             )
 
         else:

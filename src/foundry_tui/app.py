@@ -8,7 +8,7 @@ import pyperclip
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from foundry_tui.api.azure_openai import Message
+from foundry_tui.api.azure_openai import Message, ToolCall, ToolCallDelta, ToolCallFunction
 from foundry_tui.api.client import ChatClient
 from foundry_tui.config import Config
 from foundry_tui.models import Model
@@ -26,7 +26,9 @@ from foundry_tui.storage.persistence import (
     set_last_model_id,
     set_system_prompt,
 )
-from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage
+from foundry_tui.tools import create_default_registry
+from foundry_tui.tools.registry import ToolRegistry
+from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage, ToolCallMessage
 from foundry_tui.ui.input import InputContainer, MessageInput
 from foundry_tui.ui.conversation_picker import ConversationPicker
 from foundry_tui.ui.model_picker import ModelPicker
@@ -61,6 +63,12 @@ class FoundryApp(App):
         # Initialize unified API client
         self.client = ChatClient(config=config)
 
+        # Initialize tool registry
+        self.tool_registry = create_default_registry()
+
+        # Max tool loop iterations to prevent runaway loops
+        self._max_tool_iterations = 10
+
         # Initialize logger
         self.logger = get_logger()
         log_event("App initialized", model=self.current_model.name)
@@ -89,6 +97,11 @@ class FoundryApp(App):
             provider=self.current_model.provider,
         )
         status_bar.warning_threshold = self.config.settings.cost_warning_threshold
+        # Update tool count based on model capabilities
+        if self.current_model.capabilities.tools and not self.tool_registry.is_empty():
+            status_bar.set_tool_count(len(self.tool_registry.tool_names))
+        else:
+            status_bar.set_tool_count(0)
 
     def on_mount(self) -> None:
         """Handle app mount."""
@@ -101,12 +114,17 @@ class FoundryApp(App):
         if self._system_prompt:
             preview = self._system_prompt[:50] + "..." if len(self._system_prompt) > 50 else self._system_prompt
             system_info = f"\nSystem prompt: [dim]{preview}[/dim]"
+        tools_info = ""
+        if not self.tool_registry.is_empty():
+            count = len(self.tool_registry.tool_names)
+            names = ", ".join(self.tool_registry.tool_names)
+            tools_info = f"\n🔧 Tools: [dim]{names}[/dim] ({count} active)"
         welcome = Static(
             f"Welcome to Foundry TUI!\n\n"
             f"Current model: [bold]{self.current_model.name}[/bold] ({self.current_model.provider})"
-            f"{system_info}\n"
+            f"{system_info}{tools_info}\n"
             f"Type a message and press Enter to chat.\n"
-            f"Commands: /models, /system, /load, /new, /clear, /copy, /export, /help, /quit",
+            f"Commands: /models, /system, /tools, /load, /new, /clear, /copy, /export, /help, /quit",
             id="welcome",
         )
         chat_log.mount(welcome)
@@ -155,6 +173,8 @@ class FoundryApp(App):
             await self._show_conversation_picker()
         elif cmd in ("/save",):
             await self._save_current_conversation(args)
+        elif cmd in ("/tools", "/tool"):
+            await self._handle_tools_command(args)
         elif cmd in ("/help", "/h", "/?"):
             await self._show_help()
         else:
@@ -331,7 +351,7 @@ class FoundryApp(App):
             self._conversation_id = generate_conversation_id()
 
         # Generate title from first user message if not provided
-        messages_dict = [{"role": m.role, "content": m.content} for m in self.messages]
+        messages_dict = [m.to_api_dict() for m in self.messages]
         title = custom_title or generate_title(messages_dict)
 
         # Create conversation object
@@ -389,12 +409,53 @@ class FoundryApp(App):
 
         # Restore messages
         for msg in conversation.messages:
-            self.messages.append(Message(role=msg["role"], content=msg["content"]))
-            await self._add_message(msg["role"], msg["content"])
+            role = msg["role"]
+            content = msg.get("content") or ""
+            tool_call_id = msg.get("tool_call_id")
+            name = msg.get("name")
+
+            # Restore tool_calls if present
+            restored_tool_calls = None
+            if msg.get("tool_calls"):
+                restored_tool_calls = [
+                    ToolCall(
+                        id=tc["id"],
+                        type=tc.get("type", "function"),
+                        function=ToolCallFunction(
+                            name=tc["function"]["name"],
+                            arguments=tc["function"]["arguments"],
+                        ),
+                    )
+                    for tc in msg["tool_calls"]
+                ]
+
+            self.messages.append(Message(
+                role=role,
+                content=content,
+                tool_calls=restored_tool_calls,
+                tool_call_id=tool_call_id,
+                name=name,
+            ))
+
+            # Render in the UI
+            if role == "tool":
+                # Show tool results as collapsible blocks
+                chat_log = self.query_one(ChatLog)
+                tc_widget = ToolCallMessage(
+                    tool_name=name or "tool",
+                    arguments="{}",
+                    result=content,
+                )
+                await chat_log.mount(tc_widget)
+            elif role == "assistant" and restored_tool_calls:
+                # Assistant message with tool calls (no text to show) — skip display
+                pass
+            elif content:
+                await self._add_message(role, content)
 
         # Find last assistant response for /copy
         for msg in reversed(conversation.messages):
-            if msg["role"] == "assistant":
+            if msg.get("role") == "assistant" and msg.get("content"):
                 self._last_response = msg["content"]
                 break
 
@@ -461,12 +522,43 @@ class FoundryApp(App):
         """Handle picker cancellation."""
         self.query_one(MessageInput).focus()
 
+    async def _handle_tools_command(self, args: str) -> None:
+        """Handle the /tools command."""
+        if not args:
+            # List all tools
+            if self.tool_registry.is_empty():
+                await self._add_message("system", "No tools configured.\n\nSet TAVILY_API_KEY in .env for web search,\nor add custom tools to ~/.foundry-tui/tools.json")
+                return
+
+            supports_tools = self.current_model.capabilities.tools
+            lines = ["[bold]Registered Tools:[/bold]\n"]
+            for name in self.tool_registry.tool_names:
+                tool = self.tool_registry.get(name)
+                status = "[green]active[/green]" if supports_tools else "[dim]model doesn't support tools[/dim]"
+                lines.append(f"  🔧 {name} — {tool.description[:60]}")
+                lines.append(f"     Status: {status}")
+            lines.append(f"\nModel: {self.current_model.name} (tools: {'✓' if supports_tools else '✗'})")
+            await self._add_message("system", "\n".join(lines))
+
+        elif args.startswith("info "):
+            tool_name = args[5:].strip()
+            tool = self.tool_registry.get(tool_name)
+            if not tool:
+                await self._add_message("error", f"Unknown tool: {tool_name}")
+                return
+            import json
+            schema = json.dumps(tool.parameters, indent=2)
+            await self._add_message("system", f"[bold]{tool.name}[/bold]\n\n{tool.description}\n\nParameters:\n{schema}")
+        else:
+            await self._add_message("error", "Usage: /tools, /tools info <name>")
+
     async def _show_help(self) -> None:
         """Show help message."""
         help_text = (
             "[bold]Available Commands:[/bold]\n\n"
             "  /models, /m       - Select a different model\n"
             "  /system [prompt]  - View/set system prompt (/system clear to remove)\n"
+            "  /tools            - List registered tools (/tools info <name> for details)\n"
             "  /load, /convs     - Browse and load saved conversations\n"
             "  /save [title]     - Save current conversation with optional title\n"
             "  /new, /n          - Start a new conversation\n"
@@ -518,15 +610,53 @@ class FoundryApp(App):
         self._current_streaming_message = message
         return message
 
+    def _get_tool_definitions(self) -> list[dict] | None:
+        """Get tool definitions if tools are available and model supports them."""
+        if self.tool_registry.is_empty():
+            return None
+        if not self.current_model.capabilities.tools:
+            return None
+        return self.tool_registry.get_definitions()
+
+    def _assemble_tool_calls(self, deltas: list[ToolCallDelta]) -> list[ToolCall]:
+        """Accumulate streaming tool call deltas into complete ToolCall objects."""
+        calls: dict[int, dict] = {}
+        for d in deltas:
+            if d.index not in calls:
+                calls[d.index] = {"id": "", "type": "function", "name": "", "arguments": ""}
+            entry = calls[d.index]
+            if d.id:
+                entry["id"] = d.id
+            if d.type:
+                entry["type"] = d.type
+            if d.function_name:
+                entry["name"] += d.function_name
+            if d.function_arguments:
+                entry["arguments"] += d.function_arguments
+
+        return [
+            ToolCall(
+                id=entry["id"],
+                type=entry["type"],
+                function=ToolCallFunction(name=entry["name"], arguments=entry["arguments"]),
+            )
+            for entry in sorted(calls.values(), key=lambda e: list(calls.keys())[list(calls.values()).index(e)])
+        ]
+
     async def _send_message(self, text: str) -> None:
-        """Send a message to the API and stream the response."""
+        """Send a message to the API and stream the response.
+
+        Implements the tool calling loop: if the model returns tool_calls,
+        execute each tool, append results, and call the API again until
+        the model produces a final text response.
+        """
         import asyncio
 
         # Add to message history
         self.messages.append(Message(role="user", content=text))
 
         # Build messages for API (include system prompt if set)
-        api_messages = []
+        api_messages: list[Message] = []
         if self._system_prompt:
             api_messages.append(Message(role="system", content=self._system_prompt))
         api_messages.extend(self.messages)
@@ -534,89 +664,166 @@ class FoundryApp(App):
         # Log the request
         log_api_request(
             self.current_model.id,
-            [{"role": m.role, "content": m.content[:100]} for m in api_messages],
+            [{"role": m.role, "content": (m.content or "")[:100]} for m in api_messages],
         )
+
+        # Get tool definitions
+        tool_defs = self._get_tool_definitions()
 
         # Update status - sending request
         status_bar = self.query_one(StatusBar)
         status_bar.set_sending()
         self.is_streaming = True
 
-        # Start streaming message
-        streaming_msg = await self._start_streaming_message()
-
-        # Switch to thinking while waiting for first token
-        status_bar.set_thinking()
-
         try:
-            # Stream the response using unified client
-            full_response = ""
-            chunk_count = 0
-            first_chunk = True
+            iteration = 0
+            while iteration < self._max_tool_iterations:
+                iteration += 1
 
-            async for chunk in self.client.stream_chat(
-                model=self.current_model,
-                messages=api_messages,
-            ):
-                if chunk.content:
-                    # Switch to streaming on first content
-                    if first_chunk:
-                        status_bar.set_streaming()
-                        first_chunk = False
+                # Start streaming message
+                streaming_msg = await self._start_streaming_message()
+                status_bar.set_thinking()
 
-                    full_response += chunk.content
-                    streaming_msg.append(chunk.content)
-                    chunk_count += 1
+                # Stream the response
+                full_response = ""
+                chunk_count = 0
+                first_chunk = True
+                all_tc_deltas: list[ToolCallDelta] = []
 
-                    # Batch UI updates - flush display every 3 chunks
-                    if chunk_count % 3 == 0:
-                        streaming_msg.flush()
-                        chat_container = self.query_one(ChatContainer)
+                async for chunk in self.client.stream_chat(
+                    model=self.current_model,
+                    messages=api_messages,
+                    tools=tool_defs,
+                ):
+                    if chunk.content:
+                        if first_chunk:
+                            status_bar.set_streaming()
+                            first_chunk = False
+
+                        full_response += chunk.content
+                        streaming_msg.append(chunk.content)
+                        chunk_count += 1
+
+                        if chunk_count % 3 == 0:
+                            streaming_msg.flush()
+                            chat_container = self.query_one(ChatContainer)
+                            chat_container.scroll_to_bottom()
+                            await asyncio.sleep(0)
+
+                    if chunk.tool_calls:
+                        all_tc_deltas.extend(chunk.tool_calls)
+
+                # Flush remaining content
+                streaming_msg.flush()
+                chat_container = self.query_one(ChatContainer)
+                chat_container.scroll_to_bottom()
+
+                # Did the model request tool calls?
+                if all_tc_deltas:
+                    tool_calls = self._assemble_tool_calls(all_tc_deltas)
+
+                    # Remove the streaming message (it may have partial/empty content)
+                    if not full_response.strip():
+                        await streaming_msg.remove()
+                    else:
+                        streaming_msg.finalize()
+
+                    # Add assistant message with tool_calls to history
+                    assistant_msg = Message(
+                        role="assistant",
+                        content=full_response or None,
+                        tool_calls=tool_calls,
+                    )
+                    self.messages.append(assistant_msg)
+                    api_messages.append(assistant_msg)
+
+                    # Execute each tool call
+                    chat_log = self.query_one(ChatLog)
+                    for tc in tool_calls:
+                        log_event("Tool call", tool=tc.function.name, arguments=tc.function.arguments[:200])
+
+                        # Show collapsible tool call in UI
+                        tc_widget = ToolCallMessage(
+                            tool_name=tc.function.name,
+                            arguments=tc.function.arguments,
+                        )
+                        await chat_log.mount(tc_widget)
                         chat_container.scroll_to_bottom()
-                        # Yield to event loop to keep UI responsive
-                        await asyncio.sleep(0)
 
-            # Flush any remaining content and scroll
-            streaming_msg.flush()
-            chat_container = self.query_one(ChatContainer)
-            chat_container.scroll_to_bottom()
+                        # Update status
+                        status_bar.update_activity(f"⚡ {tc.function.name}")
 
-            # Finalize the message with markdown rendering
-            streaming_msg.finalize()
+                        # Execute the tool
+                        result = await self.tool_registry.execute(tc.function.name, tc.function.arguments)
 
-            # Store for /copy command
-            self._last_response = full_response
+                        # Update the widget with the result
+                        tc_widget.set_result(result.content, error=result.error)
 
-            # Add to message history
-            self.messages.append(Message(role="assistant", content=full_response))
+                        log_event(
+                            "Tool result",
+                            tool=tc.function.name,
+                            error=result.error,
+                            result_len=len(result.content),
+                        )
 
-            # Estimate token count (rough: ~4 chars per token)
-            estimated_tokens = len(text) // 4 + len(full_response) // 4
-            self.total_tokens += estimated_tokens
-            status_bar.add_tokens(estimated_tokens)
+                        # Add tool result to message history
+                        tool_msg = Message(
+                            role="tool",
+                            content=result.content,
+                            tool_call_id=tc.id,
+                            name=tc.function.name,
+                        )
+                        self.messages.append(tool_msg)
+                        api_messages.append(tool_msg)
 
-            log_event(
-                "Response received",
-                model=self.current_model.id,
-                response_len=len(full_response),
-            )
+                    # Loop back to call the API again with tool results
+                    status_bar.set_sending()
+                    continue
 
-            # Auto-save conversation
-            self._auto_save_conversation()
+                # No tool calls — this is the final text response
+                streaming_msg.finalize()
 
-            # Set ready
-            status_bar.set_ready()
+                # Store for /copy command
+                self._last_response = full_response
+
+                # Add to message history
+                self.messages.append(Message(role="assistant", content=full_response))
+
+                # Estimate token count
+                estimated_tokens = len(text) // 4 + len(full_response) // 4
+                self.total_tokens += estimated_tokens
+                status_bar.add_tokens(estimated_tokens)
+
+                log_event(
+                    "Response received",
+                    model=self.current_model.id,
+                    response_len=len(full_response),
+                )
+
+                # Auto-save conversation
+                self._auto_save_conversation()
+                status_bar.set_ready()
+                break  # Done
+
+            else:
+                # Max iterations reached
+                await self._add_message(
+                    "error",
+                    f"Tool loop stopped after {self._max_tool_iterations} iterations",
+                )
+                status_bar.set_error()
 
         except Exception as e:
             # Remove the streaming message and show error
-            await streaming_msg.remove()
+            try:
+                await streaming_msg.remove()
+            except Exception:
+                pass
             error_msg = str(e)
-            # Truncate very long error messages
             if len(error_msg) > 500:
                 error_msg = error_msg[:500] + "..."
             await self._add_message("error", f"API Error: {error_msg}")
             log_api_error(self.current_model.id, e)
-            # Set error status (auto-resets to ready)
             status_bar.set_error()
 
         finally:
