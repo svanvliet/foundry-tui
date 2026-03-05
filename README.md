@@ -10,7 +10,7 @@ A polished terminal-based chat application for testing AI models on Microsoft Az
 - **Streaming Responses** - Real-time token streaming with animated status
 - **Model Picker** - Fuzzy search to quickly switch between models
 - **Tool Calling** - Web search via Tavily, extensible tool registry
-- **Memory** - Persistent user context with semantic search (Azure OpenAI embeddings)
+- **Memory** - Persistent user context across sessions; models recall facts on demand via tool calling with semantic search
 - **20 Color Themes** - Nord default, switch with `/theme` (Dracula, Tokyo Night, Gruvbox, etc.)
 - **Reasoning Display** - `<think>` tokens from reasoning models shown in collapsible widgets
 - **Rate Limit Tracking** - RPM/TPM display, auto-retry on 429 with countdown

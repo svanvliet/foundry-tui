@@ -448,8 +448,8 @@ Add a slash command for users to manage tools.
 
 Add persistent memory so models can remember facts about the user across conversations.
 Three tools (`save_memory`, `recall_memories`, `forget_memory`) auto-registered for all
-tool-capable models. Memories stored as human-readable Markdown at `~/.foundry-tui/memories.md`
-and injected into the system prompt for every conversation.
+tool-capable models. Memories stored as human-readable Markdown at `~/.foundry-tui/memories.md`.
+Models use `recall_memories` tool to look up relevant context on demand.
 
 ### Design Decisions
 
@@ -457,10 +457,10 @@ and injected into the system prompt for every conversation.
 |----------|--------|
 | Scope | Global — all models share the same memories |
 | Storage format | Markdown (`~/.foundry-tui/memories.md`) with `##` sections |
-| Injection | All memories injected into system prompt every time |
+| Recall | Tool-based — models call `recall_memories` to look up context on demand |
+| Search | Semantic (embeddings) with keyword fallback when embeddings not configured |
 | Proactive saving | System prompt instructs models to auto-save useful facts |
 | Memory limit | None — user manages via `/memory` or direct file editing |
-| External deps | None — simple file I/O, no vector store |
 
 ---
 
@@ -731,3 +731,4 @@ memories instead of all) when memory count exceeds 10.
 | 2026-03-05 | Phase 9.1–9.5 | Complete | Memory tools, storage, injection, /memory command, status bar |
 | 2026-03-05 | Phase 9.6 plan | Complete | Semantic memory search via Azure OpenAI embeddings |
 | 2026-03-05 | Phase 9.6 | Complete | Semantic memory search with Azure OpenAI text-embedding-3-small embeddings |
+| 2026-03-05 | Memory recall | Complete | Switched from system prompt injection to tool-based recall for better accuracy |
