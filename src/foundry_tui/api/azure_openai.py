@@ -46,6 +46,7 @@ class StreamChunk:
     finish_reason: str | None = None
     tool_calls: list[ToolCallDelta] | None = None
     usage: "TokenUsage | None" = None
+    response_id: str | None = None  # RAPI response ID for state chaining
 
 
 @dataclass

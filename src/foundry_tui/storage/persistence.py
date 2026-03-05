@@ -101,3 +101,16 @@ def set_theme(theme: str | None) -> None:
     elif "theme" in config:
         del config["theme"]
     save_user_config(config)
+
+
+def get_server_state() -> bool:
+    """Get the server-side state preference (RAPI store=true)."""
+    config = load_user_config()
+    return config.get("server_state", False)
+
+
+def set_server_state(enabled: bool) -> None:
+    """Save the server-side state preference."""
+    config = load_user_config()
+    config["server_state"] = enabled
+    save_user_config(config)

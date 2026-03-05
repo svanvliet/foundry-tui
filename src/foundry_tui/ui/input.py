@@ -15,6 +15,7 @@ SLASH_COMMANDS: list[tuple[str, str, bool]] = [
     ("/tools", "List registered tools", True),
     ("/memory", "View/manage saved memories", True),
     ("/theme", "Change color theme", True),
+    ("/state", "Toggle server-side state (RAPI)", True),
     ("/load", "Browse saved conversations", False),
     ("/save", "Save current conversation", True),
     ("/new", "Start a new conversation", False),
@@ -31,6 +32,7 @@ STATIC_ARG_COMPLETIONS: dict[str, list[tuple[str, str]]] = {
     "/system": [("clear", "Remove system prompt")],
     "/tools": [("info", "Show tool details")],
     "/memory": [("search", "Search memories by keyword"), ("delete", "Delete a memory by ID"), ("clear", "Delete all memories")],
+    "/state": [("on", "Enable server-side state"), ("off", "Disable server-side state")],
     "/theme": [
         ("nord", "Arctic, clean"),
         ("gruvbox", "Retro, warm"),
