@@ -61,6 +61,7 @@ class StatusBar(Horizontal):
         self._model_category = "chat"
         self._provider = ""
         self._activity = ActivityState.READY
+        self._custom_activity: str | None = None
         self._session_tokens = 0
         self._prompt_tokens = 0
         self._completion_tokens = 0
@@ -125,11 +126,14 @@ class StatusBar(Horizontal):
             widget.update("│ [red]✗[/red] Error")
         else:
             spinner = SPINNER_FRAMES[self._spinner_frame]
-            state_text = {
-                ActivityState.SENDING: "Sending...",
-                ActivityState.THINKING: "Thinking...",
-                ActivityState.STREAMING: "Receiving...",
-            }.get(self._activity, "Working...")
+            if self._custom_activity:
+                state_text = self._custom_activity
+            else:
+                state_text = {
+                    ActivityState.SENDING: "Sending...",
+                    ActivityState.THINKING: "Thinking...",
+                    ActivityState.STREAMING: "Receiving...",
+                }.get(self._activity, "Working...")
             widget.update(f"│ [yellow]{spinner}[/yellow] {state_text}")
 
     def _refresh_tokens(self) -> None:
@@ -231,38 +235,42 @@ class StatusBar(Horizontal):
     def set_ready(self) -> None:
         """Set status to ready."""
         self._activity = ActivityState.READY
+        self._custom_activity = None
         self._refresh_activity()
 
     def set_sending(self) -> None:
         """Set status to sending."""
         self._activity = ActivityState.SENDING
+        self._custom_activity = None
         self._refresh_activity()
 
     def set_thinking(self) -> None:
         """Set status to thinking."""
         self._activity = ActivityState.THINKING
+        self._custom_activity = None
         self._refresh_activity()
 
     def set_streaming(self) -> None:
         """Set status to streaming/receiving."""
         self._activity = ActivityState.STREAMING
+        self._custom_activity = None
         self._refresh_activity()
 
     def set_error(self) -> None:
         """Set status to error (will auto-reset to ready)."""
         self._activity = ActivityState.ERROR
+        self._custom_activity = None
         self._refresh_activity()
         # Auto-reset to ready after 2 seconds
         self.set_timer(2.0, self.set_ready)
 
     def update_activity(self, text: str) -> None:
-        """Show custom activity text with a spinner."""
+        """Show custom activity text with a spinner (persists until state change)."""
         if not self._mounted:
             return
+        self._custom_activity = text
         self._activity = ActivityState.THINKING  # Keep spinner running
-        widget = self.query_one("#sb-activity", Static)
-        spinner = SPINNER_FRAMES[self._spinner_frame]
-        widget.update(f"│ [yellow]{spinner}[/yellow] {text}")
+        self._refresh_activity()
 
     def set_rpm_limit(self, limit: int) -> None:
         """Set the RPM limit for the current model."""

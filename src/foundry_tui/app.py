@@ -787,18 +787,20 @@ class FoundryApp(App):
                         if "429" in error_str and rate_limit_retries < max_429_retries:
                             rate_limit_retries += 1
 
+                            # Log at ERROR level first with full message
+                            log_api_error(self.current_model.id, rate_err)
+
                             # Parse retry-after from error message
                             retry_match = re.search(r"retry after (\d+) second", error_str, re.IGNORECASE)
                             wait_secs = int(retry_match.group(1)) if retry_match else 15
                             wait_secs = min(wait_secs, 90)
 
                             log_event(
-                                "Rate limited (429)",
+                                "Rate limited (429) — will retry",
                                 model=self.current_model.id,
                                 retry_after=wait_secs,
                                 attempt=f"{rate_limit_retries}/{max_429_retries}",
                                 iteration=iteration,
-                                error=error_str[:300],
                             )
 
                             # Remove the empty streaming message for a clean retry
@@ -807,12 +809,17 @@ class FoundryApp(App):
                             except Exception:
                                 pass
 
-                            # Show countdown in status bar and wait
+                            # Show countdown in status bar, checking for cancellation
                             for remaining in range(wait_secs, 0, -1):
+                                if not self.is_streaming:
+                                    return  # User quit or cancelled
                                 status_bar.update_activity(
                                     f"⏳ Rate limited — retrying in {remaining}s ({rate_limit_retries}/{max_429_retries})"
                                 )
                                 await asyncio.sleep(1)
+
+                            if not self.is_streaming:
+                                return
 
                             # Reset for retry (new streaming message, etc.)
                             streaming_msg = await self._start_streaming_message()
@@ -825,12 +832,12 @@ class FoundryApp(App):
                             continue  # Retry within the inner while loop
 
                         elif "429" in error_str:
-                            # Exhausted retries — show error to user
+                            # Exhausted retries — log and show error to user
+                            log_api_error(self.current_model.id, rate_err)
                             log_event(
                                 "Rate limit retries exhausted",
                                 model=self.current_model.id,
                                 attempts=rate_limit_retries,
-                                error=error_str[:300],
                             )
                             try:
                                 await streaming_msg.remove()
@@ -1001,6 +1008,7 @@ class FoundryApp(App):
 
     def action_quit(self) -> None:
         """Quit the application."""
+        self.is_streaming = False  # Break any retry countdown loops
         log_event("App exiting")
         self.exit()
 
