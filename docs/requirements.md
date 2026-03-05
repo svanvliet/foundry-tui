@@ -68,6 +68,56 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 - `/tools` command to list and inspect registered tools
 - Graceful fallback for models without tool support
 
+### 3b. Memory (Persistent User Context)
+
+Models can remember facts about the user across conversations using tool calling.
+Memories are stored locally and injected into the system prompt for every conversation.
+
+**Tools (3 tools, auto-registered for all tool-capable models):**
+
+| Tool | Description |
+|------|-------------|
+| `save_memory` | Store a fact or preference about the user. Args: `content` (string) |
+| `recall_memories` | Search stored memories by keyword. Args: `query` (string) |
+| `forget_memory` | Delete a memory by its ID. Args: `memory_id` (string) |
+
+**Behavior:**
+- **Global scope**: All models share the same memory store
+- **Proactive saving**: System prompt instructs models to save useful facts about the user automatically (e.g., preferences, name, role, coding style)
+- **Auto-injection**: All stored memories are injected into the system prompt for every conversation (no smart filtering — user manages manually)
+- **No memory limit**: User manages memory size via `/memory` command or direct file editing
+- **Graceful degradation**: Models without tool support (o1, o3-mini, DeepSeek R1) still receive injected memories but cannot save new ones
+
+**Storage:**
+- File: `~/.foundry-tui/memories.md`
+- Format: Human-readable Markdown, one `##` section per memory with metadata
+- Example:
+  ```markdown
+  # Foundry TUI Memories
+
+  ## mem_1709654321
+  - **Saved**: 2026-03-05 12:05:21
+  - **Source**: gpt-4o
+
+  User prefers Python and uses uv as their package manager.
+
+  ## mem_1709654400
+  - **Saved**: 2026-03-05 12:06:40
+  - **Source**: deepseek-v3.2
+
+  User's name is Sebastiaan. They work in developer tools.
+  ```
+
+**`/memory` command:**
+- `/memory` — list all memories with IDs and previews
+- `/memory search <query>` — search memories by keyword
+- `/memory delete <id>` — delete a specific memory
+- `/memory clear` — delete all memories (with confirmation)
+
+**Model compatibility (15 of 18 models):**
+- ✅ Tool-capable: GPT-4o/4.1/5/5.1 family, o4-mini, DeepSeek V3.2, Grok 3/4.1, Kimi K2.5, Mistral Small
+- ❌ No tools: o1, o3-mini, DeepSeek R1 (receive memories, can't save)
+
 ### 4. Conversation Persistence
 
 - Auto-save conversations to `~/.foundry-tui/conversations/`
@@ -87,6 +137,7 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 | `/export` | Export conversation to file |
 | `/system` | Set/view system prompt (Phase 4) |
 | `/tools` | List registered tools, `/tools info <name>` for details |
+| `/memory` | List memories, `/memory search`, `/memory delete <id>`, `/memory clear` |
 | `/theme [name]` | Switch color theme (20 built-in themes) |
 | `/quit` or `/exit` | Exit application |
 
