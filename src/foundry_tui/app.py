@@ -831,18 +831,22 @@ class FoundryApp(App):
         if self._system_prompt:
             parts.append(self._system_prompt)
 
-        # Inject memories
+        # Inject memories — use semantic selection only when there are
+        # many memories (>50) to keep the system prompt focused.
+        # With ≤50 memories the token cost is negligible so inject all.
+        SEMANTIC_THRESHOLD = 50
+        SEMANTIC_TOP_K = 20
         all_memories = load_memories()
         use_semantic = (
             self._embedding_client is not None
-            and len(all_memories) > 10
+            and len(all_memories) > SEMANTIC_THRESHOLD
             and user_message
         )
 
         if use_semantic:
             try:
                 memories = await semantic_search(
-                    user_message, self._embedding_client, top_k=5
+                    user_message, self._embedding_client, top_k=SEMANTIC_TOP_K
                 )
                 log_event(
                     "Smart memory injection",
