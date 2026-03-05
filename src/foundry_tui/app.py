@@ -70,8 +70,10 @@ class FoundryApp(App):
         # Initialize unified API client
         self.client = ChatClient(config=config)
 
-        # Initialize tool registry
-        self.tool_registry = create_default_registry(source_model=self.current_model.id)
+        # Initialize tool registry and embedding client
+        self.tool_registry, self._embedding_client = create_default_registry(
+            source_model=self.current_model.id
+        )
 
         # Max tool loop iterations to prevent runaway loops
         self._max_tool_iterations = 10
@@ -99,6 +101,31 @@ class FoundryApp(App):
     def _update_memory_count(self) -> None:
         """Refresh the memory count in the status bar."""
         self.query_one(StatusBar).set_memory_count(memory_count())
+
+    async def _backfill_embeddings(self) -> None:
+        """Embed any memories that don't have embeddings yet. Runs on startup."""
+        from foundry_tui.storage.memory import load_embeddings, save_embedding
+
+        if not self._embedding_client:
+            return
+
+        if not await self._embedding_client.is_available():
+            return
+
+        memories = load_memories()
+        embeddings = load_embeddings()
+        missing = [m for m in memories if m.id not in embeddings]
+
+        if not missing:
+            return
+
+        log_event("Backfilling embeddings", count=len(missing))
+        for mem in missing:
+            try:
+                vec = await self._embedding_client.embed(mem.content)
+                save_embedding(mem.id, vec)
+            except Exception:
+                break  # stop on first failure (rate limit, etc.)
 
     def _update_status_bar_model(self) -> None:
         """Update status bar with current model info."""
@@ -138,6 +165,10 @@ class FoundryApp(App):
         # Populate command menu with model names for /models completion
         cmd_menu = self.query_one(CommandMenu)
         cmd_menu.set_model_names([m.id for m in self.config.catalog.models])
+
+        # Backfill embeddings for existing memories (non-blocking)
+        if self._embedding_client:
+            self.run_worker(self._backfill_embeddings(), exclusive=False)
 
         # Show welcome message
         chat_log = self.query_one(ChatLog)
@@ -637,7 +668,9 @@ class FoundryApp(App):
     async def _handle_memory_command(self, args: str) -> None:
         """Handle the /memory command."""
         from foundry_tui.storage.memory import (
+            clear_embeddings,
             clear_memories,
+            delete_embedding as delete_emb,
             delete_memory as delete_mem,
             load_memories as load_mems,
             search_memories as search_mems,
@@ -674,14 +707,17 @@ class FoundryApp(App):
                 await self._add_message("system", "\n".join(lines))
 
         elif sub_cmd == "delete" and sub_args:
-            if delete_mem(sub_args.strip()):
-                await self._add_message("system", f"Memory [bold]{sub_args.strip()}[/bold] deleted.")
+            mem_id = sub_args.strip()
+            if delete_mem(mem_id):
+                delete_emb(mem_id)
+                await self._add_message("system", f"Memory [bold]{mem_id}[/bold] deleted.")
                 self._update_memory_count()
             else:
-                await self._add_message("error", f"Memory not found: {sub_args.strip()}")
+                await self._add_message("error", f"Memory not found: {mem_id}")
 
         elif sub_cmd == "clear":
             count = clear_memories()
+            clear_embeddings()
             if count > 0:
                 await self._add_message("system", f"Cleared [bold]{count}[/bold] memories.")
                 self._update_memory_count()
@@ -782,15 +818,42 @@ class FoundryApp(App):
             return None
         return self.tool_registry.get_definitions()
 
-    def _build_system_prompt(self) -> str | None:
-        """Build the system prompt with memory injection."""
+    async def _build_system_prompt(self, user_message: str = "") -> str | None:
+        """Build the system prompt with memory injection.
+
+        Uses smart injection (top-5 by relevance) when >10 memories
+        and embeddings are available. Otherwise injects all memories.
+        """
+        from foundry_tui.storage.memory import semantic_search
+
         parts: list[str] = []
 
         if self._system_prompt:
             parts.append(self._system_prompt)
 
         # Inject memories
-        memories = load_memories()
+        all_memories = load_memories()
+        use_semantic = (
+            self._embedding_client is not None
+            and len(all_memories) > 10
+            and user_message
+        )
+
+        if use_semantic:
+            try:
+                memories = await semantic_search(
+                    user_message, self._embedding_client, top_k=5
+                )
+                log_event(
+                    "Smart memory injection",
+                    injected=len(memories),
+                    total=len(all_memories),
+                )
+            except Exception:
+                memories = all_memories
+        else:
+            memories = all_memories
+
         if memories:
             memory_lines = [
                 "\n## Your memories about the user",
@@ -852,7 +915,7 @@ class FoundryApp(App):
 
         # Build messages for API (include system prompt + memories)
         api_messages: list[Message] = []
-        system_content = self._build_system_prompt()
+        system_content = await self._build_system_prompt(user_message=text)
         if system_content:
             api_messages.append(Message(role="system", content=system_content))
         api_messages.extend(self.messages)

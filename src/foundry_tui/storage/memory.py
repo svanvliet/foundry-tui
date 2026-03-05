@@ -1,8 +1,10 @@
 """Persistent memory storage using a human-readable Markdown file.
 
 Memories are stored at ~/.foundry-tui/memories.md with one ## section per memory.
+Optional embedding sidecar at ~/.foundry-tui/memory_embeddings.json for semantic search.
 """
 
+import json as json_mod
 import logging
 import re
 import time
@@ -159,3 +161,91 @@ def memory_count() -> int:
         return 0
     text = MEMORY_FILE.read_text(encoding="utf-8")
     return len(re.findall(r"^## mem_", text, flags=re.MULTILINE))
+
+
+# ---------------------------------------------------------------------------
+# Embedding sidecar management
+# ---------------------------------------------------------------------------
+
+EMBEDDINGS_FILE = MEMORY_DIR / "memory_embeddings.json"
+
+
+def load_embeddings() -> dict[str, list[float]]:
+    """Load all stored embeddings. Returns {memory_id: vector}."""
+    if not EMBEDDINGS_FILE.exists():
+        return {}
+    try:
+        return json_mod.loads(EMBEDDINGS_FILE.read_text(encoding="utf-8"))
+    except (json_mod.JSONDecodeError, OSError):
+        return {}
+
+
+def save_embedding(memory_id: str, embedding: list[float]) -> None:
+    """Save or update an embedding for a memory."""
+    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
+    embeddings = load_embeddings()
+    embeddings[memory_id] = embedding
+    EMBEDDINGS_FILE.write_text(
+        json_mod.dumps(embeddings), encoding="utf-8"
+    )
+
+
+def delete_embedding(memory_id: str) -> None:
+    """Remove an embedding by memory ID."""
+    embeddings = load_embeddings()
+    if memory_id in embeddings:
+        del embeddings[memory_id]
+        EMBEDDINGS_FILE.write_text(
+            json_mod.dumps(embeddings), encoding="utf-8"
+        )
+
+
+def clear_embeddings() -> None:
+    """Remove all embeddings."""
+    if EMBEDDINGS_FILE.exists():
+        EMBEDDINGS_FILE.unlink()
+
+
+def prune_embeddings() -> None:
+    """Remove embeddings for memories that no longer exist."""
+    memories = {m.id for m in load_memories()}
+    embeddings = load_embeddings()
+    pruned = {k: v for k, v in embeddings.items() if k in memories}
+    if len(pruned) < len(embeddings):
+        EMBEDDINGS_FILE.write_text(
+            json_mod.dumps(pruned), encoding="utf-8"
+        )
+        logger.info("Pruned %d orphan embeddings", len(embeddings) - len(pruned))
+
+
+async def semantic_search(
+    query: str,
+    embedding_client: "EmbeddingClient",
+    top_k: int = 5,
+) -> list[Memory]:
+    """Search memories by semantic similarity using embeddings.
+
+    Embeds the query and compares against stored memory embeddings
+    using cosine similarity. Returns the top-k most relevant memories.
+    """
+    from foundry_tui.api.embeddings import cosine_similarity
+
+    memories = load_memories()
+    embeddings = load_embeddings()
+
+    if not memories or not embeddings:
+        return []
+
+    # Embed the query
+    query_vec = await embedding_client.embed(query)
+
+    # Score each memory that has an embedding
+    scored: list[tuple[float, Memory]] = []
+    for mem in memories:
+        if mem.id in embeddings:
+            sim = cosine_similarity(query_vec, embeddings[mem.id])
+            scored.append((sim, mem))
+
+    # Sort by similarity (descending) and return top-k
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [mem for _, mem in scored[:top_k]]

@@ -259,6 +259,7 @@ if [[ "$DEPLOY_OPENAI" == true ]]; then
     update_env "AZURE_OPENAI_ENDPOINT" "$OPENAI_ENDPOINT"
     update_env "AZURE_OPENAI_API_KEY" "$OPENAI_KEY"
     update_env "AZURE_OPENAI_API_VERSION" "2024-12-01-preview"
+    update_env "AZURE_OPENAI_EMBEDDING_DEPLOYMENT" "text-embedding-3-small"
 
     print_success "Azure OpenAI configured"
 
@@ -289,6 +290,28 @@ if [[ "$DEPLOY_OPENAI" == true ]]; then
     done
 
     print_success "Azure OpenAI models deployed"
+
+    # Auto-deploy embedding model for semantic memory search
+    print_info "Deploying embedding model: text-embedding-3-small..."
+    if az cognitiveservices account deployment show \
+        --name "$OPENAI_ACCOUNT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --deployment-name "text-embedding-3-small" &> /dev/null; then
+        print_dim "  Embedding model already deployed"
+    else
+        az cognitiveservices account deployment create \
+            --name "$OPENAI_ACCOUNT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --deployment-name "text-embedding-3-small" \
+            --model-name "text-embedding-3-small" \
+            --model-version "1" \
+            --model-format "OpenAI" \
+            --sku-capacity 1 \
+            --sku-name "GlobalStandard" \
+            --output none 2>/dev/null || {
+                print_warning "Could not deploy embedding model - semantic memory search will use keyword fallback"
+            }
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

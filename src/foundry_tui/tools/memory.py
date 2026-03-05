@@ -1,16 +1,21 @@
 """Memory tools for persistent user context via function calling.
 
 Three tools allow models to save, recall, and forget memories about the user.
-Memories are stored in ~/.foundry-tui/memories.md.
+Memories are stored in ~/.foundry-tui/memories.md with optional embedding
+sidecar for semantic search.
 """
 
 import logging
 
+from foundry_tui.api.embeddings import EmbeddingClient
 from foundry_tui.storage.memory import (
+    delete_embedding,
     delete_memory,
     load_memories,
+    save_embedding,
     save_memory,
     search_memories,
+    semantic_search,
 )
 from foundry_tui.tools.base import Tool, ToolResult
 
@@ -38,17 +43,28 @@ class SaveMemoryTool(Tool):
         "required": ["content"],
     }
 
-    def __init__(self, source_model: str = "unknown") -> None:
+    def __init__(self, source_model: str = "unknown", embedding_client: EmbeddingClient | None = None) -> None:
         self._source_model = source_model
+        self._embedding_client = embedding_client
 
     def set_source_model(self, model: str) -> None:
         """Update the source model (called on model switch)."""
         self._source_model = model
 
     async def execute(self, *, content: str) -> ToolResult:
-        """Save a memory."""
+        """Save a memory and optionally embed it."""
         try:
             mem = save_memory(content, self._source_model)
+
+            # Embed if client is available
+            if self._embedding_client:
+                try:
+                    vec = await self._embedding_client.embed(content)
+                    save_embedding(mem.id, vec)
+                    logger.info("Embedded memory %s (%d dims)", mem.id, len(vec))
+                except Exception as e:
+                    logger.warning("Failed to embed memory %s: %s", mem.id, e)
+
             return ToolResult(
                 content=f"Memory saved (ID: {mem.id}): {content}"
             )
@@ -57,7 +73,7 @@ class SaveMemoryTool(Tool):
 
 
 class RecallMemoriesTool(Tool):
-    """Search stored memories about the user by keyword."""
+    """Search stored memories about the user."""
 
     name = "recall_memories"
     description = (
@@ -75,9 +91,27 @@ class RecallMemoriesTool(Tool):
         "required": ["query"],
     }
 
+    def __init__(self, embedding_client: EmbeddingClient | None = None) -> None:
+        self._embedding_client = embedding_client
+
     async def execute(self, *, query: str) -> ToolResult:
-        """Search memories."""
-        results = search_memories(query)
+        """Search memories using embeddings (if available) or keyword fallback."""
+        results = []
+
+        # Try semantic search first
+        if self._embedding_client:
+            try:
+                results = await semantic_search(query, self._embedding_client, top_k=5)
+                if results:
+                    logger.info("Semantic recall for '%s': %d results", query, len(results))
+            except Exception as e:
+                logger.warning("Semantic search failed, falling back to keyword: %s", e)
+                results = []
+
+        # Fall back to keyword search
+        if not results:
+            results = search_memories(query)
+
         if not results:
             return ToolResult(content=f"No memories found matching: {query}")
 
@@ -107,15 +141,20 @@ class ForgetMemoryTool(Tool):
     }
 
     async def execute(self, *, memory_id: str) -> ToolResult:
-        """Delete a memory."""
+        """Delete a memory and its embedding."""
         if delete_memory(memory_id):
+            delete_embedding(memory_id)
             return ToolResult(content=f"Memory {memory_id} deleted.")
         return ToolResult(
             content=f"Memory {memory_id} not found.", error=True
         )
 
 
-def create_memory_tools(source_model: str = "unknown") -> list[Tool]:
+def create_memory_tools(
+    source_model: str = "unknown",
+    embedding_client: EmbeddingClient | None = None,
+) -> list[Tool]:
     """Create all 3 memory tools. Always available (no env var needed)."""
-    save_tool = SaveMemoryTool(source_model=source_model)
-    return [save_tool, RecallMemoriesTool(), ForgetMemoryTool()]
+    save_tool = SaveMemoryTool(source_model=source_model, embedding_client=embedding_client)
+    recall_tool = RecallMemoriesTool(embedding_client=embedding_client)
+    return [save_tool, recall_tool, ForgetMemoryTool()]
