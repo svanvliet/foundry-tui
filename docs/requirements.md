@@ -19,7 +19,7 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 | Language | Python 3.11+ |
 | TUI Framework | [Textual](https://textual.textualize.io/) |
 | Input Mode | Standard keybindings |
-| Theme | Auto-detect from terminal |
+| Theme | Textual themes (Nord default, 20 built-in themes) |
 | Model Picker | Fuzzy finder (fzf-style) |
 | Error Display | Inline in chat + logged to `logs/` |
 | Conversation Storage | JSON files in standard format |
@@ -37,9 +37,11 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 - Message history with clear visual distinction between user and assistant messages
 - Status bar showing:
   - Current model name and provider
-  - Token counts (input/output)
+  - Token counts (input/output/cached breakdown)
+  - RPM counter (requests / limit) with color coding
   - Context usage indicator (warning when approaching limits)
   - Connection status
+  - Rate limit auto-retry with countdown on 429 errors
 
 ### 2. Model Selection (`/models` command)
 
@@ -51,14 +53,19 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
   - Provider icon/badge
   - Capabilities (tools, vision, streaming)
   - Context window size
+  - RPM/TPM rate limit columns
 - Persist last-used model selection across sessions
 - "Provision New Model" option showing available models (returns "Not Yet Implemented")
 
-### 3. Tool/Function Calling
+### 3. Tool/Function Calling ✅
 
 - Support for models with `capabilities.tools: true`
-- Define tools via configuration file or in-app
-- Display tool calls and results in chat
+- Extensible tool registry (`tools/registry.py`, `tools/base.py`)
+- Built-in Tavily web search tool (auto-enabled when `TAVILY_API_KEY` is set)
+- User-defined tools via `~/.foundry-tui/tools.json`
+- Tool loop in `_send_message` with max 10 iterations
+- Collapsible tool call UI widgets (show tool name + args, expand for results)
+- `/tools` command to list and inspect registered tools
 - Graceful fallback for models without tool support
 
 ### 4. Conversation Persistence
@@ -79,7 +86,14 @@ Foundry TUI is a terminal-based chat application for testing and interacting wit
 | `/copy` | Copy last response to clipboard |
 | `/export` | Export conversation to file |
 | `/system` | Set/view system prompt (Phase 4) |
+| `/tools` | List registered tools, `/tools info <name>` for details |
+| `/theme [name]` | Switch color theme (20 built-in themes) |
 | `/quit` or `/exit` | Exit application |
+
+**Input Enhancements:**
+- Slash command autocomplete menu (filters as you type, Tab to complete, Enter to submit)
+- Arg-level completions: `/models` → model names, `/system` → `clear`, `/theme` → theme names
+- Input history with Up/Down arrow navigation (persisted to `~/.foundry-tui/input_history.txt`, last 200 entries)
 
 ### 6. Logging
 
@@ -167,8 +181,9 @@ The app handles three distinct Azure API patterns:
 | `Shift+Enter` | New line in input |
 | `Ctrl+C` | Cancel current generation / Exit |
 | `Ctrl+L` | Clear screen |
-| `Up/Down` | Scroll history |
-| `Esc` | Cancel current action / Close modal |
+| `Up/Down` | Input history (cycle through previous prompts) |
+| `Tab` | Accept slash command autocomplete |
+| `Esc` | Cancel streaming/retry / Close modal |
 
 ### Status Bar
 
@@ -212,16 +227,19 @@ The status bar provides real-time feedback about the application state.
 **Token Tracking:**
 
 - **Session tokens**: Total input + output tokens for current session
-- **Stored in memory** during session (resets on app restart)
-- **Estimated** from streaming (actual counts when API provides them)
+- **Real counts** from API via `stream_options: {"include_usage": true}` in all three clients
+- **Prompt/completion/cached breakdown**: `Tokens: N (↑prompt ↓completion)` with `cached_tokens` from `prompt_tokens_details`
+- **Per-call logging**: per-message breakdown (role, chars, tool_calls), actual token counts
+- **HTTP-level tracing**: request body, rate limit headers, error bodies (Azure OpenAI)
 - **Future**: Per-model cumulative tracking across sessions (stored in config)
 
 ### Visual Design
 
 - Minimal chrome, maximum content area
-- Auto-detect light/dark theme from terminal
+- Textual themes: Nord default, 20 built-in themes, switchable via `/theme` command
 - Syntax highlighting for code blocks
 - Animated spinner during model response
+- Collapsible widgets for tool calls and reasoning `<think>` tokens (💭)
 - Color-coded model categories:
   - Chat models: Cyan `●`
   - Reasoning models: Magenta `◆`

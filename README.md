@@ -7,10 +7,16 @@ A terminal-based chat application for testing AI models on Microsoft Azure AI Fo
 - **Multi-Model Support** - Chat with 18+ models from OpenAI, DeepSeek, xAI, Mistral, and more
 - **Streaming Responses** - Real-time token streaming with animated status
 - **Model Picker** - Fuzzy search to quickly switch between models
+- **Tool Calling** - Web search via Tavily, extensible tool registry
+- **20 Color Themes** - Nord default, switch with `/theme` (Dracula, Tokyo Night, Gruvbox, etc.)
+- **Reasoning Display** - `<think>` tokens from reasoning models shown in collapsible widgets
+- **Rate Limit Tracking** - RPM/TPM display, auto-retry on 429 with countdown
+- **Command Autocomplete** - Tab completion for all slash commands
+- **Input History** - Up/Down arrow to cycle through previous prompts
 - **Conversation History** - Auto-save and resume previous conversations
 - **System Prompts** - Set custom system prompts, persisted across sessions
 - **Markdown Rendering** - Rich formatting with syntax-highlighted code blocks
-- **Token Tracking** - Monitor usage with color-coded warnings
+- **Token Tracking** - Real token counts with prompt/completion/cached breakdown
 
 ## Quick Start
 
@@ -84,6 +90,8 @@ The script will:
 |---------|-------------|
 | `/models` or `/m` | Open model picker (fuzzy search) |
 | `/system [prompt]` | View/set system prompt (`/system clear` to remove) |
+| `/theme [name]` | Switch color theme (20 built-in themes) |
+| `/tools` | List registered tools (`/tools info <name>` for details) |
 | `/load` or `/convs` | Browse and load saved conversations |
 | `/save [title]` | Save conversation with optional title |
 | `/new` or `/n` | Start a new conversation |
@@ -99,9 +107,11 @@ The script will:
 |----------|--------|
 | `Enter` | Send message |
 | `Shift+Enter` | New line in input |
-| `Ctrl+C` | Quit |
+| `Up/Down` | Cycle through input history |
+| `Tab` | Accept slash command autocomplete |
+| `Escape` | Cancel streaming / retry / close picker |
+| `Ctrl+C` | Quit (also works during retry countdown) |
 | `Ctrl+L` | Clear screen |
-| `Escape` | Cancel / Close picker |
 
 ### Supported Models
 
@@ -156,6 +166,7 @@ foundry-tui/
 | `AZURE_AI_API_KEY` | Azure AI Services API key | For DeepSeek/Grok/Kimi |
 | `SERVERLESS_ENDPOINT_*` | Serverless model endpoints | For Mistral |
 | `SERVERLESS_KEY_*` | Serverless model API keys | For Mistral |
+| `TAVILY_API_KEY` | Tavily web search API key ([free tier](https://tavily.com)) | For tool calling |
 | `FOUNDRY_TUI_LOG_LEVEL` | Log level (default: `INFO`) | No |
 | `FOUNDRY_TUI_COST_WARNING_THRESHOLD` | Token warning threshold | No |
 
@@ -176,8 +187,9 @@ Models are defined in `models-catalog.json`. You can add, remove, or modify mode
 
 Foundry TUI stores data in `~/.foundry-tui/`:
 
-- `config.json` - User preferences (last model, system prompt)
+- `config.json` - User preferences (last model, system prompt, theme, rate limits)
 - `conversations/` - Saved conversations (JSON)
+- `input_history.txt` - Command/prompt history (last 200 entries)
 
 Logs are written to `logs/` in the project directory.
 
@@ -219,8 +231,8 @@ The app no longer sends max_tokens by default. If you see this error, make sure 
 2. Verify the model is deployed in your Azure subscription
 3. Check `logs/` for detailed error messages
 
-### UI freezing during responses
-This was fixed in a recent update. Pull the latest version and try again.
+### 429 Rate Limit Errors
+Azure S0 tier has hard rate limit caps (e.g., 1K TPM on newer models like GPT-5.1) that override your deployment capacity settings. The app auto-retries with a countdown (up to 3 attempts). Press Escape to cancel the retry or Ctrl+C to quit. Check your actual limits in the Azure portal under your deployment's rate limits tab.
 
 ## License
 

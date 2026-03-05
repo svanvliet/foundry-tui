@@ -44,9 +44,8 @@
   - [x] `/copy` - copy last response to clipboard
   - [x] `/export` - export conversation to JSON
 
-- [x] **3.7 Terminal Background Colors**
-  - [x] Use ANSI default colors (`ansi_default`) for terminal background inheritance
-  - [x] Set `ANSI_COLOR = True` on App to preserve ANSI color codes
+- [x] **3.7 Terminal Colors & Themes**
+  - [x] Textual themes (Nord default, `/theme` command with 20 built-in themes)
   - [x] Disabled automatic retries in OpenAI SDK (`max_retries=0`) for immediate error feedback
 
 ---
@@ -107,7 +106,7 @@ Interactive setup scripts for deploying Azure resources.
 
 ---
 
-## Phase 7: Tool Calling & Web Search
+## Phase 7: Tool Calling & Web Search ✅
 
 Add function/tool calling support so models can invoke external tools during a conversation.
 Ships with **Tavily Web Search** as a built-in tool (works with all tool-capable models).
@@ -136,20 +135,20 @@ Update `Message` and `StreamChunk` to support the tool calling protocol.
 
 **Files:** `api/azure_openai.py`, `storage/conversations.py`, `models.py`
 
-- [ ] **7.1.1 — Extend Message dataclass**
+- [x] **7.1.1 — Extend Message dataclass**
   - Add optional fields: `tool_calls: list[ToolCall] | None`, `tool_call_id: str | None`, `name: str | None`
   - Create `ToolCall` dataclass: `id`, `type` ("function"), `function` (name + arguments JSON string)
   - Create `ToolCallFunction` dataclass: `name`, `arguments` (JSON string)
   - Messages with `role="assistant"` can now carry `tool_calls` instead of (or alongside) `content`
   - Messages with `role="tool"` carry `tool_call_id` + `content` (the result) + `name` (tool name)
 
-- [ ] **7.1.2 — Extend StreamChunk for tool call deltas**
+- [x] **7.1.2 — Extend StreamChunk for tool call deltas**
   - Add `tool_calls: list[ToolCallDelta] | None` to `StreamChunk`
   - `ToolCallDelta`: `index`, `id` (only on first chunk), `function` with `name` and `arguments` (partial JSON)
   - The streaming loop will accumulate these deltas to build complete `ToolCall` objects
   - Add `finish_reason="tool_calls"` handling (distinct from `"stop"`)
 
-- [ ] **7.1.3 — Update conversation serialization**
+- [x] **7.1.3 — Update conversation serialization**
   - Change `messages: list[dict[str, str]]` → `list[dict[str, Any]]` in `Conversation`
   - Serialize `tool_calls` as nested dicts when saving to JSON
   - Deserialize back when loading conversations (backward-compatible: old convos without tool fields still load fine)
@@ -163,7 +162,7 @@ Create the extensible tool system. Tools are Python callables registered with a 
 
 **Files:** `tools/__init__.py`, `tools/registry.py`, `tools/base.py`, `tools/config.py`
 
-- [ ] **7.2.1 — Tool base class and types**
+- [x] **7.2.1 — Tool base class and types**
   - Create `tools/base.py` with abstract `Tool` class:
     ```python
     class Tool(ABC):
@@ -180,7 +179,7 @@ Create the extensible tool system. Tools are Python callables registered with a 
     {"type": "function", "function": {"name": "...", "description": "...", "parameters": {...}}}
     ```
 
-- [ ] **7.2.2 — Tool registry**
+- [x] **7.2.2 — Tool registry**
   - Create `tools/registry.py` with `ToolRegistry` class:
     - `register(tool: Tool)` — add a tool
     - `get(name: str) -> Tool | None` — look up by function name
@@ -190,7 +189,7 @@ Create the extensible tool system. Tools are Python callables registered with a 
   - Registry is instantiated once in `FoundryApp.__init__` and passed to the API layer
   - Built-in tools auto-register; user-defined tools loaded from config
 
-- [ ] **7.2.3 — User-defined tools config loader**
+- [x] **7.2.3 — User-defined tools config loader**
   - Create `tools/config.py` to load tools from `~/.foundry-tui/tools.json`
   - Config format:
     ```json
@@ -272,7 +271,7 @@ Wire the tool calling protocol into all three API clients.
 
 **Files:** `api/azure_openai.py`, `api/azure_ai.py`, `api/serverless.py`, `api/client.py`
 
-- [ ] **7.5.1 — Azure OpenAI client: send tools + handle tool_calls in stream**
+- [x] **7.5.1 — Azure OpenAI client: send tools + handle tool_calls in stream**
   - In `stream_chat()`: accept optional `tools: list[dict]` parameter
   - If tools provided, add `"tools": tools` to kwargs
   - Handle streaming deltas where `delta.tool_calls` exists (instead of `delta.content`):
@@ -280,23 +279,23 @@ Wire the tool calling protocol into all three API clients.
     - When `finish_reason == "tool_calls"`, yield a final chunk with assembled `tool_calls`
   - In `chat()` (non-streaming): extract `message.tool_calls` from response
 
-- [ ] **7.5.2 — Azure AI client: send tools + handle tool_calls in stream**
+- [x] **7.5.2 — Azure AI client: send tools + handle tool_calls in stream**
   - Same pattern as Azure OpenAI but via httpx JSON parsing
   - Add `"tools": tools` to the request payload
   - Parse `delta.tool_calls` from SSE JSON chunks
   - Same accumulation logic as 7.5.1
 
-- [ ] **7.5.3 — Serverless client: send tools + handle tool_calls in stream**
+- [x] **7.5.3 — Serverless client: send tools + handle tool_calls in stream**
   - Same pattern — Mistral uses standard OpenAI tool format
   - Add `"tools": tools` to the request payload
   - Parse tool call deltas from streaming response
 
-- [ ] **7.5.4 — Unified client: pass tools through**
+- [x] **7.5.4 — Unified client: pass tools through**
   - Update `ChatClient.stream_chat()` and `ChatClient.chat()` to accept `tools: list[dict] | None`
   - Pass through to whichever backend is active
   - Only pass tools if model has `capabilities.tools == True` (graceful skip otherwise)
 
-- [ ] **7.5.5 — Message serialization for API calls**
+- [x] **7.5.5 — Message serialization for API calls**
   - Update the `api_messages` construction in all clients to handle the full message format:
     - Assistant messages with `tool_calls` → include `tool_calls` field (not just `content`)
     - Tool result messages → `role: "tool"`, `tool_call_id`, `content`, `name`
@@ -310,7 +309,7 @@ Modify `_send_message` to implement the multi-turn tool calling loop.
 
 **Files:** `app.py`
 
-- [ ] **7.6.1 — Implement the tool loop in _send_message**
+- [x] **7.6.1 — Implement the tool loop in _send_message**
   - After streaming a response, check if `finish_reason == "tool_calls"`
   - If yes, enter a loop:
     1. Parse the tool calls from the final stream chunk
@@ -327,7 +326,7 @@ Modify `_send_message` to implement the multi-turn tool calling loop.
   - Safety: cap the loop at a configurable max iterations (default: 10) to prevent runaway loops
   - Update status bar during tool execution: "Calling bing_search..." or similar
 
-- [ ] **7.6.2 — Error handling in tool loop**
+- [x] **7.6.2 — Error handling in tool loop**
   - If a tool is not found in registry → return error result to model: `"Error: Unknown tool 'xyz'"`
   - If tool execution fails → return error result: `"Error: {exception message}"`
   - If max iterations exceeded → break loop, show warning in chat
@@ -342,7 +341,7 @@ Add collapsible tool call blocks to the chat UI.
 
 **Files:** `ui/chat.py`, `ui/styles.tcss`
 
-- [ ] **7.7.1 — ToolCallMessage widget**
+- [x] **7.7.1 — ToolCallMessage widget**
   - New `ToolCallMessage` widget (extends `Static` or `Collapsible`):
     - Collapsed: `⚡ bing_search("current weather in Seattle")` — one-line summary
     - Expanded: shows full arguments JSON + formatted result
@@ -350,13 +349,13 @@ Add collapsible tool call blocks to the chat UI.
   - Styled distinctly from regular messages (muted color, left border accent)
   - Multiple tool calls in one turn → multiple collapsible blocks
 
-- [ ] **7.7.2 — Streaming integration**
+- [x] **7.7.2 — Streaming integration**
   - While tool calls are being accumulated during streaming, show a "thinking" indicator
   - Once tool calls are identified (stream ends with `tool_calls`), immediately show the collapsible blocks
   - While each tool executes, show a spinner next to the tool block
   - After execution completes, update the block with the result
 
-- [ ] **7.7.3 — CSS styling**
+- [x] **7.7.3 — CSS styling**
   - Add styles for `.tool-call-message` — distinct visual treatment:
     - Subtle background, left border accent (e.g., blue/cyan)
     - Monospace font for arguments
@@ -396,13 +395,13 @@ Add a slash command for users to manage tools.
 
 **Files:** `app.py`
 
-- [ ] **7.9.1 — /tools command**
+- [x] **7.9.1 — /tools command**
   - `/tools` — list all registered tools with status (enabled/available/not configured)
   - `/tools enable <name>` / `/tools disable <name>` — toggle individual tools per session
   - `/tools info <name>` — show tool schema and description
   - Show which tools are active for the current model in the tool list
 
-- [ ] **7.9.2 — Status bar tool indicator**
+- [x] **7.9.2 — Status bar tool indicator**
   - When tools are active, show a `🔧 N` indicator in the status bar (N = number of active tools)
   - When model doesn't support tools, dim or hide the indicator
 
@@ -431,7 +430,21 @@ Add a slash command for users to manage tools.
 
 ---
 
-## Phase 8: Advanced Features (Future)
+## Phase 8: UX Polish & Observability ✅
+
+- [x] Slash command autocomplete menu with arg-level completions (`/models` → model names, `/system` → `clear`, `/tools` → `info`, `/theme` → theme names)
+- [x] Input history with Up/Down navigation (persisted to `~/.foundry-tui/input_history.txt`, last 200 entries)
+- [x] Real token tracking via `stream_options: {"include_usage": true}` with prompt/completion/cached breakdown
+- [x] HTTP-level request/response tracing for Azure OpenAI (request body, rate limit headers, error bodies)
+- [x] Rate limit tracking (RPM/TPM ratios in catalog, actual limits persisted in config, status bar `RPM: count/limit`, model picker RPM/TPM columns)
+- [x] 429 auto-retry with countdown and cancellation (max 3 retries, Escape cancels, Ctrl+C quits)
+- [x] Reasoning model `<think>` tag rendering (collapsible 💭 widget, status bar "💭 Reasoning...")
+- [x] Textual themes with `/theme` command (Nord default, 20 built-in themes, persisted in config.json)
+- [x] Background worker for streaming (`_send_message` as Textual worker, non-blocking event loop, Escape cancels)
+
+---
+
+## Phase 9: Advanced Features (Future)
 
 - [ ] Per-model token tracking (cumulative across sessions)
 - [ ] Model provisioning from catalog (in-app)
@@ -442,9 +455,9 @@ Add a slash command for users to manage tools.
 
 ## Current Status
 
-**Phase**: Phase 7 — Tool Calling & Web Search
-**Current Task**: Ready for implementation
-**Blockers**: None
+**Phase**: Phase 8 — UX Polish & Observability (Complete)
+**Current Task**: Phase 9 planning
+**Blockers**: S0 tier rate limits (1K TPM on newer models)
 
 ---
 
@@ -464,3 +477,6 @@ Add a slash command for users to manage tools.
 | 2026-03-04 | Rate limit fix | Complete | Disabled OpenAI SDK auto-retries (max_retries=0) |
 | 2026-03-04 | Terminal colors | Complete | ANSI_COLOR=True + ansi_default for terminal background |
 | 2026-03-05 | Phase 7 plan | Complete | Tool calling + Bing Search + Grounding + custom tools |
+| 2026-03-05 | Phase 7 | Complete | Tool calling with Tavily web search |
+| 2026-03-05 | Bing → Tavily pivot | Complete | Bing Search v7 retired; switched to Tavily |
+| 2026-03-05 | Phase 8 | Complete | UX polish, token tracking, themes, rate limits |
