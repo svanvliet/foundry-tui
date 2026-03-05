@@ -22,9 +22,10 @@ class SaveMemoryTool(Tool):
 
     name = "save_memory"
     description = (
-        "Save a fact, preference, or important detail about the user so you can "
-        "remember it in future conversations. Use this when you learn something "
-        "useful about the user (name, preferences, role, projects, etc.)."
+        "Save a single fact or preference about the user for future conversations. "
+        "Store ONE fact per call — if you learn multiple things, call this tool "
+        "separately for each fact. This allows the user to manage individual memories. "
+        "Use this when you learn something useful (name, preferences, role, projects, etc.)."
     )
     parameters = {
         "type": "object",
