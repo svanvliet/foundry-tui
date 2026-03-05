@@ -30,6 +30,7 @@ from foundry_tui.storage.persistence import (
     set_system_prompt,
     set_theme,
 )
+from foundry_tui.storage.memory import load_memories, memory_count
 from foundry_tui.tools import create_default_registry
 from foundry_tui.tools.registry import ToolRegistry
 from foundry_tui.ui.chat import ChatContainer, ChatLog, ChatMessage, StreamingMessage, ThinkingMessage, ToolCallMessage
@@ -70,7 +71,7 @@ class FoundryApp(App):
         self.client = ChatClient(config=config)
 
         # Initialize tool registry
-        self.tool_registry = create_default_registry()
+        self.tool_registry = create_default_registry(source_model=self.current_model.id)
 
         # Max tool loop iterations to prevent runaway loops
         self._max_tool_iterations = 10
@@ -95,6 +96,10 @@ class FoundryApp(App):
         yield InputContainer()
         yield StatusBar()
 
+    def _update_memory_count(self) -> None:
+        """Refresh the memory count in the status bar."""
+        self.query_one(StatusBar).set_memory_count(memory_count())
+
     def _update_status_bar_model(self) -> None:
         """Update status bar with current model info."""
         status_bar = self.query_one(StatusBar)
@@ -117,6 +122,8 @@ class FoundryApp(App):
             status_bar.set_tool_count(len(self.tool_registry.tool_names))
         else:
             status_bar.set_tool_count(0)
+        # Update memory count
+        status_bar.set_memory_count(memory_count())
 
     def on_mount(self) -> None:
         """Handle app mount."""
@@ -203,6 +210,8 @@ class FoundryApp(App):
             await self._save_current_conversation(args)
         elif cmd in ("/tools", "/tool"):
             await self._handle_tools_command(args)
+        elif cmd in ("/memory", "/mem"):
+            await self._handle_memory_command(args)
         elif cmd in ("/theme",):
             await self._handle_theme_command(args)
         elif cmd in ("/help", "/h", "/?"):
@@ -561,6 +570,11 @@ class FoundryApp(App):
         # Save to persistence
         set_last_model_id(event.model.id)
 
+        # Update memory tool source model
+        save_tool = self.tool_registry.get("save_memory")
+        if save_tool and hasattr(save_tool, "set_source_model"):
+            save_tool.set_source_model(event.model.id)
+
         # Update status bar
         self._update_status_bar_model()
 
@@ -620,6 +634,63 @@ class FoundryApp(App):
         else:
             await self._add_message("error", "Usage: /tools, /tools info <name>")
 
+    async def _handle_memory_command(self, args: str) -> None:
+        """Handle the /memory command."""
+        from foundry_tui.storage.memory import (
+            clear_memories,
+            delete_memory as delete_mem,
+            load_memories as load_mems,
+            search_memories as search_mems,
+        )
+
+        if not args:
+            # List all memories
+            memories = load_mems()
+            if not memories:
+                await self._add_message("system", "No memories stored. Models will save memories as they learn about you.")
+                return
+            lines = [f"[bold]Stored Memories ({len(memories)}):[/bold]\n"]
+            for m in memories:
+                preview = m.content[:80] + "…" if len(m.content) > 80 else m.content
+                lines.append(f"  [dim]{m.id}[/dim] ({m.source_model})")
+                lines.append(f"    {preview}\n")
+            lines.append("[dim]Use /memory delete <id> or /memory clear[/dim]")
+            await self._add_message("system", "\n".join(lines))
+            return
+
+        sub_parts = args.strip().split(maxsplit=1)
+        sub_cmd = sub_parts[0].lower()
+        sub_args = sub_parts[1] if len(sub_parts) > 1 else ""
+
+        if sub_cmd == "search" and sub_args:
+            results = search_mems(sub_args)
+            if not results:
+                await self._add_message("system", f"No memories matching: {sub_args}")
+            else:
+                lines = [f"[bold]Search results for '{sub_args}' ({len(results)}):[/bold]\n"]
+                for m in results:
+                    lines.append(f"  [dim]{m.id}[/dim] ({m.source_model})")
+                    lines.append(f"    {m.content}\n")
+                await self._add_message("system", "\n".join(lines))
+
+        elif sub_cmd == "delete" and sub_args:
+            if delete_mem(sub_args.strip()):
+                await self._add_message("system", f"Memory [bold]{sub_args.strip()}[/bold] deleted.")
+                self._update_memory_count()
+            else:
+                await self._add_message("error", f"Memory not found: {sub_args.strip()}")
+
+        elif sub_cmd == "clear":
+            count = clear_memories()
+            if count > 0:
+                await self._add_message("system", f"Cleared [bold]{count}[/bold] memories.")
+                self._update_memory_count()
+            else:
+                await self._add_message("system", "No memories to clear.")
+
+        else:
+            await self._add_message("error", "Usage: /memory, /memory search <query>, /memory delete <id>, /memory clear")
+
     async def _handle_theme_command(self, args: str) -> None:
         """Handle the /theme command."""
         available = sorted(self.available_themes)
@@ -650,6 +721,7 @@ class FoundryApp(App):
             "  /models, /m       - Select a different model\n"
             "  /system [prompt]  - View/set system prompt (/system clear to remove)\n"
             "  /tools            - List registered tools (/tools info <name> for details)\n"
+            "  /memory           - List memories (/memory search, /memory delete, /memory clear)\n"
             "  /theme [name]     - View/change color theme\n"
             "  /load, /convs     - Browse and load saved conversations\n"
             "  /save [title]     - Save current conversation with optional title\n"
@@ -710,6 +782,36 @@ class FoundryApp(App):
             return None
         return self.tool_registry.get_definitions()
 
+    def _build_system_prompt(self) -> str | None:
+        """Build the system prompt with memory injection."""
+        parts: list[str] = []
+
+        if self._system_prompt:
+            parts.append(self._system_prompt)
+
+        # Inject memories
+        memories = load_memories()
+        if memories:
+            memory_lines = [
+                "\n## Your memories about the user",
+                "You have saved the following memories about the user. "
+                "Use them to personalize responses.",
+                "When you learn something new and important about the user, "
+                "use save_memory to remember it.\n",
+            ]
+            for m in memories:
+                memory_lines.append(f"- {m.content}")
+            parts.append("\n".join(memory_lines))
+        else:
+            parts.append(
+                "\nYou have no saved memories about the user yet. "
+                "When you learn useful facts about the user (name, preferences, "
+                "role, projects, etc.), use the save_memory tool to remember them "
+                "for future conversations."
+            )
+
+        return "\n\n".join(parts) if parts else None
+
     def _assemble_tool_calls(self, deltas: list[ToolCallDelta]) -> list[ToolCall]:
         """Accumulate streaming tool call deltas into complete ToolCall objects."""
         calls: dict[int, dict] = {}
@@ -748,10 +850,11 @@ class FoundryApp(App):
         # Add to message history
         self.messages.append(Message(role="user", content=text))
 
-        # Build messages for API (include system prompt if set)
+        # Build messages for API (include system prompt + memories)
         api_messages: list[Message] = []
-        if self._system_prompt:
-            api_messages.append(Message(role="system", content=self._system_prompt))
+        system_content = self._build_system_prompt()
+        if system_content:
+            api_messages.append(Message(role="system", content=system_content))
         api_messages.extend(self.messages)
 
         # Get tool definitions
@@ -1017,6 +1120,10 @@ class FoundryApp(App):
                             error=result.error,
                             result_len=len(result.content),
                         )
+
+                        # Refresh memory count if a memory tool was used
+                        if tc.function.name in ("save_memory", "forget_memory"):
+                            self._update_memory_count()
 
                         # Add tool result to message history
                         tool_msg = Message(

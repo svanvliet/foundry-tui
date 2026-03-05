@@ -444,7 +444,134 @@ Add a slash command for users to manage tools.
 
 ---
 
-## Phase 9: Advanced Features (Future)
+## Phase 9: Memory (Persistent User Context)
+
+Add persistent memory so models can remember facts about the user across conversations.
+Three tools (`save_memory`, `recall_memories`, `forget_memory`) auto-registered for all
+tool-capable models. Memories stored as human-readable Markdown at `~/.foundry-tui/memories.md`
+and injected into the system prompt for every conversation.
+
+### Design Decisions
+
+| Decision | Choice |
+|----------|--------|
+| Scope | Global — all models share the same memories |
+| Storage format | Markdown (`~/.foundry-tui/memories.md`) with `##` sections |
+| Injection | All memories injected into system prompt every time |
+| Proactive saving | System prompt instructs models to auto-save useful facts |
+| Memory limit | None — user manages via `/memory` or direct file editing |
+| External deps | None — simple file I/O, no vector store |
+
+---
+
+### 9.1 — Memory Storage Layer
+
+Read/write memories to `~/.foundry-tui/memories.md`.
+
+**File:** `storage/memory.py`
+
+- [ ] **9.1.1 — Memory dataclass and storage functions**
+  - `Memory` dataclass: `id` (str, e.g. `mem_1709654321`), `content` (str), `source_model` (str), `created_at` (datetime)
+  - `load_memories() -> list[Memory]` — parse `memories.md`, return list
+  - `save_memory(content: str, source_model: str) -> Memory` — append new section to file, return it
+  - `delete_memory(memory_id: str) -> bool` — remove section, rewrite file
+  - `clear_memories() -> int` — delete all, return count
+  - `search_memories(query: str) -> list[Memory]` — case-insensitive substring match
+  - Create file with `# Foundry TUI Memories` header on first write
+
+---
+
+### 9.2 — Memory Tools (3 tools)
+
+Implement the tools that models invoke via function calling.
+
+**File:** `tools/memory.py`
+
+- [ ] **9.2.1 — SaveMemoryTool**
+  - `name = "save_memory"`, single param: `content` (string, required)
+  - `execute()`: calls `save_memory()` from storage layer, returns confirmation with memory ID
+  - Description tells model: "Save a fact or preference about the user for future conversations"
+
+- [ ] **9.2.2 — RecallMemoriesTool**
+  - `name = "recall_memories"`, single param: `query` (string, required)
+  - `execute()`: calls `search_memories()`, formats results as numbered list
+  - If no results, returns "No memories found matching: {query}"
+
+- [ ] **9.2.3 — ForgetMemoryTool**
+  - `name = "forget_memory"`, single param: `memory_id` (string, required)
+  - `execute()`: calls `delete_memory()`, returns success/failure message
+
+- [ ] **9.2.4 — Auto-registration in `__init__.py`**
+  - Always register all 3 memory tools (no env var needed — file-based)
+  - Register before Tavily so memory tools appear first in `/tools` list
+
+---
+
+### 9.3 — System Prompt Memory Injection
+
+Inject all stored memories into the system prompt automatically.
+
+**File:** `app.py`
+
+- [ ] **9.3.1 — Inject memories into API messages**
+  - In `_send_message()` where `api_messages` is built, load all memories
+  - Append a memory context block to the system prompt:
+    ```
+    ## Your memories about the user
+    You have saved the following memories about the user. Use them to personalize responses.
+    When you learn something new and important about the user, use save_memory to remember it.
+
+    - User prefers Python and uses uv as their package manager.
+    - User's name is Sebastiaan. They work in developer tools.
+    ```
+  - If no memories exist, add instruction: "You have no saved memories yet. Use save_memory when you learn useful facts about the user."
+  - If no system prompt set, create one with just the memory block
+
+---
+
+### 9.4 — `/memory` Command
+
+User-facing command to manage memories from the TUI.
+
+**Files:** `app.py`, `ui/input.py`
+
+- [ ] **9.4.1 — Implement /memory command handler**
+  - `/memory` — list all memories with IDs and content previews
+  - `/memory search <query>` — search by keyword
+  - `/memory delete <id>` — delete specific memory
+  - `/memory clear` — delete all (with count confirmation)
+
+- [ ] **9.4.2 — Slash command autocomplete**
+  - Add `/memory` to `SLASH_COMMANDS` list
+  - Add arg completions: `search`, `delete`, `clear`
+  - Add to `/help` output
+
+---
+
+### 9.5 — Status Bar Memory Indicator
+
+Show memory count in status bar.
+
+**File:** `ui/status_bar.py`, `app.py`
+
+- [ ] **9.5.1 — Memory count indicator**
+  - Add `🧠 N` indicator to status bar (N = number of stored memories)
+  - Update on model switch and after tool execution
+  - Dim/hide if 0 memories
+
+---
+
+### Implementation Order
+
+```
+9.1 (Storage) ──→ 9.2 (Tools) ──→ 9.3 (Injection) ──→ 9.4 (Command) ──→ 9.5 (Status Bar)
+```
+
+Each step depends on the previous. Build sequentially.
+
+---
+
+## Phase 10: Advanced Features (Future)
 
 - [ ] Per-model token tracking (cumulative across sessions)
 - [ ] Model provisioning from catalog (in-app)
@@ -455,8 +582,8 @@ Add a slash command for users to manage tools.
 
 ## Current Status
 
-**Phase**: Phase 8 — UX Polish & Observability (Complete)
-**Current Task**: Phase 9 planning
+**Phase**: Phase 9 — Memory (In Progress)
+**Current Task**: Implementation
 **Blockers**: S0 tier rate limits (1K TPM on newer models)
 
 ---
@@ -480,3 +607,4 @@ Add a slash command for users to manage tools.
 | 2026-03-05 | Phase 7 | Complete | Tool calling with Tavily web search |
 | 2026-03-05 | Bing → Tavily pivot | Complete | Bing Search v7 retired; switched to Tavily |
 | 2026-03-05 | Phase 8 | Complete | UX polish, token tracking, themes, rate limits |
+| 2026-03-05 | Phase 9 plan | Complete | Memory tools design with global markdown storage |

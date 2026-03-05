@@ -48,6 +48,10 @@ class StatusBar(Horizontal):
         margin-left: 1;
     }
 
+    StatusBar > #sb-memory {
+        margin-left: 1;
+    }
+
     StatusBar > #sb-provider {
         margin-left: 1;
     }
@@ -69,6 +73,7 @@ class StatusBar(Horizontal):
         self._tool_count = 0
         self._rpm_limit: int = 0
         self._request_count: int = 0
+        self._memory_count: int = 0
         self._mounted = False
 
     def compose(self) -> ComposeResult:
@@ -77,6 +82,7 @@ class StatusBar(Horizontal):
         yield Static("│ [green]✓[/green] Ready", id="sb-activity")
         yield Static("│ Session: 0 tokens", id="sb-tokens")
         yield Static("", id="sb-rpm")
+        yield Static("", id="sb-memory")
         yield Static("", id="sb-tools")
         yield Static("", id="sb-provider")
 
@@ -199,6 +205,16 @@ class StatusBar(Horizontal):
         else:
             widget.update("")
 
+    def _refresh_memory(self) -> None:
+        """Refresh memory count display."""
+        if not self._mounted:
+            return
+        widget = self.query_one("#sb-memory", Static)
+        if self._memory_count > 0:
+            widget.update(f"│ 🧠 {self._memory_count}")
+        else:
+            widget.update("")
+
     # Public API
     def set_model(self, name: str, category: str = "chat", provider: str = "") -> None:
         """Set the current model info."""
@@ -291,3 +307,8 @@ class StatusBar(Horizontal):
         """Set the number of active tools."""
         self._tool_count = count
         self._refresh_tools()
+
+    def set_memory_count(self, count: int) -> None:
+        """Set the number of stored memories."""
+        self._memory_count = count
+        self._refresh_memory()
