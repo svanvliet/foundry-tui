@@ -556,7 +556,6 @@ class FoundryApp(App):
             async for chunk in self.client.stream_chat(
                 model=self.current_model,
                 messages=api_messages,
-                max_tokens=self.current_model.max_output_tokens,
             ):
                 if chunk.content:
                     # Switch to streaming on first content
