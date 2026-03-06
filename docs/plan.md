@@ -1001,7 +1001,7 @@ Make URLs and file paths in messages clickable.
 
 ---
 
-## Phase 12: Image Generation Tool
+## Phase 12: Image Generation Tool ✅
 
 Add a `generate_image` tool backed by GPT-image-1 on Azure OpenAI. Chat models invoke
 it as a tool call when the user asks for images. Images are saved to ~/Downloads/ and
@@ -1025,7 +1025,7 @@ displayed inline if supported.
 
 **File:** `tools/image_generate.py` (new)
 
-- [ ] **Create `GenerateImageTool` class**
+- [x] **Create `GenerateImageTool` class**
   - Parameters: `prompt` (str, required), `size` (enum, optional), `quality` (enum, optional)
   - Uses `AzureOpenAI` client with same endpoint/key as chat models
   - Calls `client.images.generate(model=deployment, prompt=..., response_format="b64_json", ...)`
@@ -1033,12 +1033,12 @@ displayed inline if supported.
   - Uses `resolve_collision()` from `file_create.py` for filename conflicts
   - Returns: file:// URL, dimensions, size in KB, and the prompt used
 
-- [ ] **Configuration**
+- [x] **Configuration**
   - Read `AZURE_OPENAI_IMAGE_DEPLOYMENT` from env/config
   - Add to `Config` model and `.env.example`
   - Tool only registered when deployment is configured
 
-- [ ] **Register in `tools/__init__.py`**
+- [x] **Register in `tools/__init__.py`**
   - Conditional: only register if image deployment is configured
   - Pattern: like Tavily (check env var, skip if missing)
 
@@ -1048,12 +1048,12 @@ displayed inline if supported.
 
 **Files:** `app.py`, `ui/input.py`
 
-- [ ] **Add `/image` command**
+- [x] **Add `/image` command**
   - `/image quality` — show current quality default
   - `/image quality low|medium|high` — set quality (persisted via `persistence.py`)
   - Tab completion for quality subcommand
 
-- [ ] **Persist quality setting**
+- [x] **Persist quality setting**
   - `get_image_quality()` / `set_image_quality()` in `storage/persistence.py`
   - Default: `high`
 
@@ -1074,13 +1074,13 @@ displayed inline if supported.
 
 **Files:** `scripts/setup.sh`, `scripts/setup.ps1`
 
-- [ ] **Deploy gpt-image-1 in setup.sh**
+- [x] **Deploy gpt-image-1 in setup.sh**
   - Add after embedding model deployment
   - `az cognitiveservices account deployment create` with `--model-name gpt-image-1`
   - Write `AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-1` to `.env`
   - Graceful skip if model not available in region (warning, not error)
 
-- [ ] **Deploy gpt-image-1 in setup.ps1**
+- [x] **Deploy gpt-image-1 in setup.ps1**
   - Same logic in PowerShell
   - Same env var written to `.env`
 
@@ -1088,10 +1088,10 @@ displayed inline if supported.
 
 ### 12.5 — Documentation
 
-- [ ] Update README with `generate_image` tool in Built-in Tools table
-- [ ] Add `AZURE_OPENAI_IMAGE_DEPLOYMENT` to env var table
-- [ ] Update `/image` in commands table
-- [ ] Note that image generation requires separate deployment
+- [x] Update README with `generate_image` tool in Built-in Tools table
+- [x] Add `AZURE_OPENAI_IMAGE_DEPLOYMENT` to env var table
+- [x] Update `/image` in commands table
+- [x] Note that image generation requires separate deployment
 
 ---
 
@@ -1118,9 +1118,9 @@ displayed inline if supported.
 
 ## Current Status
 
-**Phase**: Phase 12 — Image Generation Tool
-**Current Task**: Ready for implementation
-**Blockers**: None
+**Phase**: Phase 12 — Image Generation Tool ✅
+**Current Task**: None — all phases through 12 complete (inline display deferred)
+**Blockers**: gpt-image-1 not yet available in eastus via CLI; tool ready for when it is
 
 ---
 
@@ -1153,3 +1153,4 @@ displayed inline if supported.
 | 2026-03-05 | Phase 11 plan | Complete | File creation tool with security sandboxing + clickable TUI links |
 | 2026-03-05 | Phase 11 | Complete | create_file tool (~/Downloads/ sandbox), clickable links via Textual Markdown |
 | 2026-03-06 | Phase 12 plan | Complete | Image generation tool via GPT-image-1 deployment |
+| 2026-03-06 | Phase 12 | Complete | generate_image tool, /image command, setup scripts. Inline display deferred. |

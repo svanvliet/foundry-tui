@@ -25,11 +25,13 @@ from foundry_tui.storage.conversations import (
     save_conversation,
 )
 from foundry_tui.storage.persistence import (
+    get_image_quality,
     get_last_model_id,
     get_model_rate_limits,
     get_server_state,
     get_system_prompt,
     get_theme,
+    set_image_quality,
     set_last_model_id,
     set_server_state,
     set_system_prompt,
@@ -81,7 +83,8 @@ class FoundryApp(App):
 
         # Initialize tool registry and embedding client
         self.tool_registry, self._embedding_client = create_default_registry(
-            source_model=self.current_model.id
+            source_model=self.current_model.id,
+            image_quality=get_image_quality(),
         )
 
         # Max tool loop iterations to prevent runaway loops
@@ -195,7 +198,7 @@ class FoundryApp(App):
             f"Current model: [bold]{self.current_model.name}[/bold] ({self.current_model.provider})"
             f"{system_info}{tools_info}\n"
             f"Type a message and press Enter to chat.\n"
-            f"Commands: /models, /system, /tools, /load, /new, /clear, /copy, /export, /help, /quit",
+            f"Commands: /models, /system, /tools, /image, /load, /new, /clear, /copy, /export, /help, /quit",
             id="welcome",
         )
         chat_log.mount(welcome)
@@ -256,6 +259,8 @@ class FoundryApp(App):
             await self._handle_theme_command(args)
         elif cmd in ("/state",):
             await self._handle_state_command(args)
+        elif cmd in ("/image",):
+            await self._handle_image_command(args)
         elif cmd in ("/help", "/h", "/?"):
             await self._show_help()
         else:
@@ -796,6 +801,38 @@ class FoundryApp(App):
         else:
             await self._add_message("error", "Usage: /state on | /state off")
 
+    async def _handle_image_command(self, args: str) -> None:
+        """Handle the /image command for image generation settings."""
+        from foundry_tui.tools.image_generate import GenerateImageTool, VALID_QUALITIES
+
+        # Check if image tool is registered
+        image_tool = self.tool_registry.get("generate_image")
+        if not image_tool:
+            await self._add_message("system",
+                "Image generation is not configured.\n\n"
+                "Set AZURE_OPENAI_IMAGE_DEPLOYMENT in .env to enable it.\n"
+                "Run the setup script or deploy gpt-image-1 manually."
+            )
+            return
+
+        if not args or args.strip() == "quality":
+            quality = image_tool.default_quality if isinstance(image_tool, GenerateImageTool) else "high"
+            await self._add_message("system",
+                f"[bold]Image quality:[/bold] {quality}\n\n"
+                f"Usage: /image quality low|medium|high"
+            )
+            return
+
+        parts = args.strip().lower().split()
+        if len(parts) == 2 and parts[0] == "quality" and parts[1] in VALID_QUALITIES:
+            quality = parts[1]
+            if isinstance(image_tool, GenerateImageTool):
+                image_tool.default_quality = quality
+            set_image_quality(quality)
+            await self._add_message("system", f"Image quality set to [bold]{quality}[/bold]")
+        else:
+            await self._add_message("error", "Usage: /image quality low|medium|high")
+
     async def _show_help(self) -> None:
         """Show help message."""
         help_text = (
@@ -806,6 +843,7 @@ class FoundryApp(App):
             "  /memory           - List memories (/memory search, /memory delete, /memory clear)\n"
             "  /theme [name]     - View/change color theme\n"
             "  /state [on|off]   - Toggle server-side conversation state (RAPI)\n"
+            "  /image quality    - View/set image generation quality (low|medium|high)\n"
             "  /load, /convs     - Browse and load saved conversations\n"
             "  /save [title]     - Save current conversation with optional title\n"
             "  /new, /n          - Start a new conversation\n"

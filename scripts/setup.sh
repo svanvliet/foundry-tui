@@ -312,6 +312,36 @@ if [[ "$DEPLOY_OPENAI" == true ]]; then
                 print_warning "Could not deploy embedding model - semantic memory search will use keyword fallback"
             }
     fi
+
+    # Auto-deploy image generation model
+    print_info "Deploying image model: gpt-image-1..."
+    if az cognitiveservices account deployment show \
+        --name "$OPENAI_ACCOUNT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --deployment-name "gpt-image-1" &> /dev/null; then
+        print_dim "  Image model already deployed"
+    else
+        az cognitiveservices account deployment create \
+            --name "$OPENAI_ACCOUNT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --deployment-name "gpt-image-1" \
+            --model-name "gpt-image-1" \
+            --model-version "1" \
+            --model-format "OpenAI" \
+            --sku-capacity 1 \
+            --sku-name "Standard" \
+            --output none 2>/dev/null || {
+                print_warning "Could not deploy gpt-image-1 - image generation will not be available"
+                print_dim "  Model may not be available in your region yet. You can deploy manually later."
+            }
+    fi
+    # Write env var if deployment exists (may have been pre-existing)
+    if az cognitiveservices account deployment show \
+        --name "$OPENAI_ACCOUNT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --deployment-name "gpt-image-1" &> /dev/null; then
+        update_env "AZURE_OPENAI_IMAGE_DEPLOYMENT" "gpt-image-1"
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
