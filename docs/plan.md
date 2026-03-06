@@ -1001,97 +1001,78 @@ Make URLs and file paths in messages clickable.
 
 ---
 
-## Phase 12: Image Generation Tool ✅
+## Phase 12: Image Generation Tool
 
-Add a `generate_image` tool backed by GPT-image-1 on Azure OpenAI. Chat models invoke
-it as a tool call when the user asks for images. Images are saved to ~/Downloads/ and
-displayed inline if supported.
+~~Previously targeted GPT-image-1 (Azure OpenAI) — deprecated DALL-E 3, GPT-image-1 not available via CLI.~~
+**Updated:** Use FLUX.2-pro (Black Forest Labs) on Azure AI Services instead.
 
 ### Design Decisions
 
 | Decision | Choice |
 |----------|--------|
-| Image model | GPT-image-1 (Azure OpenAI deployment) |
-| API | `client.images.generate()` — same SDK, same endpoint |
-| Tool availability | Auto-registered when `AZURE_OPENAI_IMAGE_DEPLOYMENT` is set |
+| Image model | **FLUX.2-pro** (Black Forest Labs, Azure AI Services) |
+| API | Standard Azure OpenAI Images API (`/openai/deployments/{name}/images/generations`) |
+| Endpoint/Key | `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` (AI Services, not Azure OpenAI) |
+| Tool availability | Auto-registered when `AZURE_AI_IMAGE_DEPLOYMENT` is set |
 | Size | Model picks: 1024×1024, 1024×1536, 1536×1024 |
 | Quality | User-configurable default (high), persisted, `/image quality <level>` |
-| Output | Save to ~/Downloads/ + display inline in TUI |
+| Output | Save to ~/Downloads/ as PNG with file:// URL |
 | Filename | Auto-generated timestamp (`image_20260306_001234.png`) |
+| Rate limit | 1 req/60s on GlobalStandard SKU (default) |
 
 ---
 
-### 12.1 — Image Generation Tool
+### 12.1 — Image Generation Tool (Refactor)
 
-**File:** `tools/image_generate.py` (new)
+**File:** `tools/image_generate.py` (update existing)
 
-- [x] **Create `GenerateImageTool` class**
-  - Parameters: `prompt` (str, required), `size` (enum, optional), `quality` (enum, optional)
-  - Uses `AzureOpenAI` client with same endpoint/key as chat models
-  - Calls `client.images.generate(model=deployment, prompt=..., response_format="b64_json", ...)`
-  - Decodes base64 response → writes PNG to `~/Downloads/image_YYYYMMDD_HHMMSS.png`
-  - Uses `resolve_collision()` from `file_create.py` for filename conflicts
-  - Returns: file:// URL, dimensions, size in KB, and the prompt used
+- [ ] **Refactor `GenerateImageTool` for FLUX.2-pro**
+  - Change: use `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` instead of OpenAI credentials
+  - Change: deployment name from env var `AZURE_AI_IMAGE_DEPLOYMENT`
+  - Remove: `quality` parameter from tool (FLUX.2-pro doesn't support it the same way)
+  - Keep: `prompt`, `size` parameters; same base64 decode + save logic
+  - Keep: `resolve_collision()`, file:// URL, timestamp filenames
 
-- [x] **Configuration**
-  - Read `AZURE_OPENAI_IMAGE_DEPLOYMENT` from env/config
-  - Add to `Config` model and `.env.example`
-  - Tool only registered when deployment is configured
+- [ ] **Update `create_image_tool()` factory**
+  - Read `AZURE_AI_IMAGE_DEPLOYMENT` (was `AZURE_OPENAI_IMAGE_DEPLOYMENT`)
+  - Read `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` (was AZURE_OPENAI_*)
+  - Return None if not configured
 
-- [x] **Register in `tools/__init__.py`**
-  - Conditional: only register if image deployment is configured
-  - Pattern: like Tavily (check env var, skip if missing)
+- [ ] **Update `tools/__init__.py`** — update env var name
 
 ---
 
-### 12.2 — User Commands
+### 12.2 — Configuration Updates
 
-**Files:** `app.py`, `ui/input.py`
-
-- [x] **Add `/image` command**
-  - `/image quality` — show current quality default
-  - `/image quality low|medium|high` — set quality (persisted via `persistence.py`)
-  - Tab completion for quality subcommand
-
-- [x] **Persist quality setting**
-  - `get_image_quality()` / `set_image_quality()` in `storage/persistence.py`
-  - Default: `high`
+- [ ] **Update `.env.example`** — replace `AZURE_OPENAI_IMAGE_DEPLOYMENT` with `AZURE_AI_IMAGE_DEPLOYMENT`
+- [ ] **Update `.env`** — add `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro`
+- [ ] **Update `/image` command** — remove quality references for FLUX (keep persisted quality for future use)
 
 ---
 
-### 12.3 — Inline Image Display
+### 12.3 — Setup Scripts
 
-**Files:** `ui/chat.py`
+- [ ] **Update `setup.sh`** — deploy `flux-2-pro` on AI Services (not OpenAI)
+  - Uses `--model-format "Black Forest Labs"`, `--sku-name "GlobalStandard"`
+  - Writes `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro` to `.env`
+  - Remove old gpt-image-1 deployment attempt from OpenAI section
 
-- [ ] **Display generated images in the TUI**
-  - Research Textual's image display capabilities (Textual 0.80+ has image support?)
-  - If not natively supported, show a placeholder with the file:// link
-  - Fallback: ASCII art preview or just the clickable link
-
----
-
-### 12.4 — Setup Scripts
-
-**Files:** `scripts/setup.sh`, `scripts/setup.ps1`
-
-- [x] **Deploy gpt-image-1 in setup.sh**
-  - Add after embedding model deployment
-  - `az cognitiveservices account deployment create` with `--model-name gpt-image-1`
-  - Write `AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-1` to `.env`
-  - Graceful skip if model not available in region (warning, not error)
-
-- [x] **Deploy gpt-image-1 in setup.ps1**
-  - Same logic in PowerShell
-  - Same env var written to `.env`
+- [ ] **Update `setup.ps1`** — same changes in PowerShell
 
 ---
 
-### 12.5 — Documentation
+### 12.4 — Documentation
 
-- [x] Update README with `generate_image` tool in Built-in Tools table
-- [x] Add `AZURE_OPENAI_IMAGE_DEPLOYMENT` to env var table
-- [x] Update `/image` in commands table
-- [x] Note that image generation requires separate deployment
+- [ ] Update README: env var table, built-in tools table
+- [ ] Update plan.md: mark complete
+
+---
+
+### Implementation Order
+
+```
+12.1 (Refactor Tool) ──→ 12.2 (Config) ──→ 12.3 (Scripts) ──→ 12.4 (Docs)
+```
 
 ---
 
@@ -1118,9 +1099,9 @@ displayed inline if supported.
 
 ## Current Status
 
-**Phase**: Phase 12 — Image Generation Tool ✅
-**Current Task**: None — all phases through 12 complete (inline display deferred)
-**Blockers**: gpt-image-1 not yet available in eastus via CLI; tool ready for when it is
+**Phase**: Phase 12 — Image Generation Tool (FLUX.2-pro refactor)
+**Current Task**: Ready for implementation
+**Blockers**: None — FLUX.2-pro deployed and tested
 
 ---
 
