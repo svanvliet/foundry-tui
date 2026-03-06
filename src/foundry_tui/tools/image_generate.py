@@ -1,4 +1,4 @@
-"""Image generation tool — calls GPT-image-1 on Azure OpenAI."""
+"""Image generation tool — calls FLUX.2-pro on Azure AI Services."""
 
 import base64
 import logging
@@ -14,11 +14,10 @@ from foundry_tui.tools.file_create import DOWNLOADS_DIR, resolve_collision, _pat
 logger = logging.getLogger(__name__)
 
 VALID_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
-VALID_QUALITIES = {"low", "medium", "high"}
 
 
 class GenerateImageTool(Tool):
-    """Generate an image using GPT-image-1 on Azure OpenAI."""
+    """Generate an image using FLUX.2-pro on Azure AI Services."""
 
     name = "generate_image"
     description = (
@@ -54,11 +53,9 @@ class GenerateImageTool(Tool):
         endpoint: str,
         api_key: str,
         deployment: str,
-        api_version: str = "2025-03-01-preview",
-        default_quality: str = "high",
+        api_version: str = "2024-12-01-preview",
     ):
         self._deployment = deployment
-        self._default_quality = default_quality
         self._client = AsyncAzureOpenAI(
             azure_endpoint=endpoint,
             api_key=api_key,
@@ -66,38 +63,25 @@ class GenerateImageTool(Tool):
             max_retries=0,
         )
 
-    @property
-    def default_quality(self) -> str:
-        return self._default_quality
-
-    @default_quality.setter
-    def default_quality(self, value: str) -> None:
-        if value in VALID_QUALITIES:
-            self._default_quality = value
-
     async def execute(self, *, prompt: str, size: str = "1024x1024") -> ToolResult:
         """Generate an image and save it to ~/Downloads/."""
         try:
-            # Validate size
             if size not in VALID_SIZES:
                 size = "1024x1024"
 
             logger.info(
-                "Generating image: prompt=%s, size=%s, quality=%s",
-                prompt[:80], size, self._default_quality,
+                "Generating image: prompt=%s, size=%s",
+                prompt[:80], size,
             )
 
-            # Call Azure OpenAI Images API
             response = await self._client.images.generate(
                 model=self._deployment,
                 prompt=prompt,
                 size=size,
-                quality=self._default_quality,
                 response_format="b64_json",
                 n=1,
             )
 
-            # Extract base64 data
             image_data = response.data[0]
             b64_content = image_data.b64_json
             if not b64_content:
@@ -106,14 +90,11 @@ class GenerateImageTool(Tool):
                     error=True,
                 )
 
-            # Decode
             image_bytes = base64.b64decode(b64_content)
 
-            # Generate filename with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"image_{timestamp}.png"
 
-            # Save to Downloads
             DOWNLOADS_DIR.mkdir(parents=True, exist_ok=True)
             target = resolve_collision(DOWNLOADS_DIR, filename)
 
@@ -123,7 +104,6 @@ class GenerateImageTool(Tool):
 
             logger.info("Image saved: %s (%.1f KB)", target, size_kb)
 
-            # Get revised prompt if available
             revised = getattr(image_data, "revised_prompt", None)
             prompt_note = f"\n🔄 Revised prompt: {revised}" if revised else ""
 
@@ -138,7 +118,6 @@ class GenerateImageTool(Tool):
 
         except Exception as e:
             error_msg = str(e)
-            # Extract useful info from API errors
             if "content_policy" in error_msg.lower() or "safety" in error_msg.lower():
                 return ToolResult(
                     content="Error: Image generation was blocked by the content safety filter. Try a different prompt.",
@@ -148,16 +127,16 @@ class GenerateImageTool(Tool):
             return ToolResult(content=f"Error generating image: {error_msg}", error=True)
 
 
-def create_image_tool(default_quality: str = "high") -> GenerateImageTool | None:
-    """Create an image generation tool if deployment is configured."""
-    deployment = os.environ.get("AZURE_OPENAI_IMAGE_DEPLOYMENT")
+def create_image_tool() -> GenerateImageTool | None:
+    """Create an image generation tool if FLUX.2-pro deployment is configured."""
+    deployment = os.environ.get("AZURE_AI_IMAGE_DEPLOYMENT")
     if not deployment:
         return None
 
-    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
-    api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    endpoint = os.environ.get("AZURE_AI_ENDPOINT")
+    api_key = os.environ.get("AZURE_AI_API_KEY")
     if not endpoint or not api_key:
-        logger.warning("Image deployment set but Azure OpenAI endpoint/key missing")
+        logger.warning("Image deployment set but Azure AI Services endpoint/key missing")
         return None
 
     logger.info("Image generation tool configured (deployment: %s)", deployment)
@@ -165,5 +144,4 @@ def create_image_tool(default_quality: str = "high") -> GenerateImageTool | None
         endpoint=endpoint,
         api_key=api_key,
         deployment=deployment,
-        default_quality=default_quality,
     )

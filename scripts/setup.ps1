@@ -295,33 +295,6 @@ if ($DeployOpenAI) {
     catch {
         Write-Warning "Could not deploy embedding model - semantic memory search will use keyword fallback"
     }
-
-    # Auto-deploy image generation model
-    Write-Info "Deploying image model: gpt-image-1..."
-    try {
-        az cognitiveservices account deployment create `
-            --name $OpenAIAccountName `
-            --resource-group $ResourceGroup `
-            --deployment-name "gpt-image-1" `
-            --model-name "gpt-image-1" `
-            --model-version "1" `
-            --model-format "OpenAI" `
-            --sku-capacity 1 `
-            --sku-name "Standard" `
-            --output none 2>$null
-    }
-    catch {
-        Write-Warning "Could not deploy gpt-image-1 - image generation will not be available"
-        Write-Host "  Model may not be available in your region yet. You can deploy manually later." -ForegroundColor DarkGray
-    }
-    # Write env var if deployment exists
-    $imgDeploy = az cognitiveservices account deployment show `
-        --name $OpenAIAccountName `
-        --resource-group $ResourceGroup `
-        --deployment-name "gpt-image-1" 2>$null
-    if ($imgDeploy) {
-        Update-EnvFile "AZURE_OPENAI_IMAGE_DEPLOYMENT" "gpt-image-1"
-    }
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -379,6 +352,42 @@ if ($DeployAI) {
 
     Update-EnvFile "AZURE_AI_ENDPOINT" $AIEndpoint
     Update-EnvFile "AZURE_AI_API_KEY" $AIKey
+
+    # Auto-deploy image generation model (FLUX.2-pro by Black Forest Labs)
+    Write-Info "Deploying image model: FLUX.2-pro..."
+    try {
+        $existingImg = az cognitiveservices account deployment show `
+            --name $AIAccountName `
+            --resource-group $ResourceGroup `
+            --deployment-name "flux-2-pro" 2>$null
+        if ($existingImg) {
+            Write-Dim "  Image model already deployed"
+        }
+        else {
+            az cognitiveservices account deployment create `
+                --name $AIAccountName `
+                --resource-group $ResourceGroup `
+                --deployment-name "flux-2-pro" `
+                --model-name "FLUX.2-pro" `
+                --model-version "1" `
+                --model-format "Black Forest Labs" `
+                --sku-capacity 1 `
+                --sku-name "GlobalStandard" `
+                --output none 2>$null
+        }
+    }
+    catch {
+        Write-Warning "Could not deploy FLUX.2-pro - image generation will not be available"
+        Write-Dim "  Model may not be available in your region. You can deploy manually later."
+    }
+    # Write env var if deployment exists
+    $imgDeploy = az cognitiveservices account deployment show `
+        --name $AIAccountName `
+        --resource-group $ResourceGroup `
+        --deployment-name "flux-2-pro" 2>$null
+    if ($imgDeploy) {
+        Update-EnvFile "AZURE_AI_IMAGE_DEPLOYMENT" "flux-2-pro"
+    }
 
     Write-Success "Azure AI Services configured"
 

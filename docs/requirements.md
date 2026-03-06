@@ -159,7 +159,7 @@ calls a FLUX.2-pro deployment on Azure AI Services.
 - Write `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro` to `.env`
 - Handle case where model isn't available in the user's region (graceful skip with warning)
 - Model format: `"Black Forest Labs"`, SKU: `GlobalStandard`
-- Rate limit: 1 request/60s on default tier
+- Rate limit: 30 RPM on GlobalStandard SKU (configurable in Azure portal)
 
 **Security:**
 - Same sandbox as `create_file` — files only written to `~/Downloads/`

@@ -1018,7 +1018,7 @@ Make URLs and file paths in messages clickable.
 | Quality | User-configurable default (high), persisted, `/image quality <level>` |
 | Output | Save to ~/Downloads/ as PNG with file:// URL |
 | Filename | Auto-generated timestamp (`image_20260306_001234.png`) |
-| Rate limit | 1 req/60s on GlobalStandard SKU (default) |
+| Rate limit | 30 RPM on GlobalStandard SKU (configurable in portal) |
 
 ---
 

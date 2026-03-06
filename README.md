@@ -111,7 +111,7 @@ The script will:
 | `/copy` | Copy last response to clipboard |
 | `/export [file]` | Export conversation to JSON |
 | `/state [on\|off]` | Toggle server-side conversation state |
-| `/image quality [level]` | View/set image generation quality (`low`, `medium`, `high`) |
+| `/image` | Image generation status and info |
 | `/help` or `/h` | Show help |
 | `/quit` or `/q` | Exit |
 
@@ -141,7 +141,7 @@ Models with tool calling support can use these built-in tools:
 | `recall_memories` | Search saved memories (semantic search with embeddings if configured) | None (embeddings optional) |
 | `forget_memory` | Delete a specific memory by ID | None |
 | `create_file` | Create a text file in `~/Downloads/` | None |
-| `generate_image` | Generate images from text prompts (saves PNG to `~/Downloads/`) | `AZURE_OPENAI_IMAGE_DEPLOYMENT` |
+| `generate_image` | Generate images from text prompts (saves PNG to `~/Downloads/`) | `AZURE_AI_IMAGE_DEPLOYMENT` |
 
 **File creation security**: Files are sandboxed to `~/Downloads/` only. Path traversal is blocked, binary executables (.exe, .dll, .so) are rejected, and a 10 MB size limit is enforced. Duplicate filenames are auto-suffixed (`report_1.md`, `report_2.md`, etc.).
 
@@ -205,9 +205,9 @@ foundry-tui/
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | For GPT/o-series |
 | `AZURE_OPENAI_API_VERSION` | API version (default: `2024-12-01-preview`) | No |
 | `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | Embedding model deployment name (enables semantic memory search) | No |
-| `AZURE_OPENAI_IMAGE_DEPLOYMENT` | Image model deployment name, e.g. `gpt-image-1` (enables `generate_image` tool) | No |
-| `AZURE_AI_ENDPOINT` | Azure AI Services endpoint | For DeepSeek/Grok/Kimi |
-| `AZURE_AI_API_KEY` | Azure AI Services API key | For DeepSeek/Grok/Kimi |
+| `AZURE_AI_IMAGE_DEPLOYMENT` | Image model deployment name, e.g. `flux-2-pro` (enables `generate_image` tool) | No |
+| `AZURE_AI_ENDPOINT` | Azure AI Services endpoint | For DeepSeek/Grok/Kimi + image gen |
+| `AZURE_AI_API_KEY` | Azure AI Services API key | For DeepSeek/Grok/Kimi + image gen |
 | `SERVERLESS_ENDPOINT_*` | Serverless model endpoints | For Mistral |
 | `SERVERLESS_KEY_*` | Serverless model API keys | For Mistral |
 | `TAVILY_API_KEY` | Tavily web search API key ([free tier](https://tavily.com)). Only needed for non-OpenAI models (OpenAI models use built-in web search) | For tool calling |

@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 def create_default_registry(
     source_model: str = "unknown",
-    image_quality: str = "high",
 ) -> tuple[ToolRegistry, EmbeddingClient | None]:
     """Create a ToolRegistry with built-in and user-defined tools.
 
@@ -44,8 +43,8 @@ def create_default_registry(
     # Built-in: File creation (always available, no config needed)
     registry.register(CreateFileTool())
 
-    # Built-in: Image generation (requires AZURE_OPENAI_IMAGE_DEPLOYMENT)
-    image_tool = create_image_tool(default_quality=image_quality)
+    # Built-in: Image generation (requires AZURE_AI_IMAGE_DEPLOYMENT)
+    image_tool = create_image_tool()
     if image_tool:
         registry.register(image_tool)
 
