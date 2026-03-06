@@ -1011,8 +1011,8 @@ Make URLs and file paths in messages clickable.
 | Decision | Choice |
 |----------|--------|
 | Image model | **FLUX.2-pro** (Black Forest Labs, Azure AI Services) |
-| API | Standard Azure OpenAI Images API (`/openai/deployments/{name}/images/generations`) |
-| Endpoint/Key | `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` (AI Services, not Azure OpenAI) |
+| API | Black Forest Labs provider API (`/providers/blackforestlabs/v1/{deployment}?api-version=preview`) |
+| Endpoint/Key | `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` (AI Services, Bearer auth) |
 | Tool availability | Auto-registered when `AZURE_AI_IMAGE_DEPLOYMENT` is set |
 | Size | Model picks: 1024×1024, 1024×1536, 1536×1024 |
 | Quality | User-configurable default (high), persisted, `/image quality <level>` |
@@ -1133,5 +1133,5 @@ Make URLs and file paths in messages clickable.
 | 2026-03-05 | Phase 10 | Complete | Responses API for Azure OpenAI models with built-in web search and server-side state |
 | 2026-03-05 | Phase 11 plan | Complete | File creation tool with security sandboxing + clickable TUI links |
 | 2026-03-05 | Phase 11 | Complete | create_file tool (~/Downloads/ sandbox), clickable links via Textual Markdown |
-| 2026-03-06 | Phase 12 plan | Complete | Image generation tool via GPT-image-1 deployment |
+| 2026-03-06 | Phase 12 plan | Complete | Image generation tool via FLUX.2-pro (Black Forest Labs) |
 | 2026-03-06 | Phase 12 | Complete | generate_image tool, /image command, setup scripts. Inline display deferred. |

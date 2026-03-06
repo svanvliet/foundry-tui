@@ -118,11 +118,11 @@ calls a FLUX.2-pro deployment on Azure AI Services.
 - 4MP output, photorealistic, text rendering in images
 - Deprecated alternatives: DALL-E 3 (deprecated March 2026), GPT-image-1 (not yet available via CLI)
 
-**API:** Standard Azure OpenAI Images API format
-- Endpoint: `{AZURE_AI_ENDPOINT}openai/deployments/flux-2-pro/images/generations`
-- Uses the same `/openai/deployments/{name}/images/generations` path as DALL-E
-- Auth: `api-key` header (Azure AI Services key)
-- Compatible with the OpenAI Python SDK (`AsyncAzureOpenAI.images.generate()`)
+**API:** Black Forest Labs provider API on Azure AI Services
+- Endpoint: `{AZURE_AI_ENDPOINT}providers/blackforestlabs/v1/flux-2-pro?api-version=preview`
+- Uses the BFL provider path (not the OpenAI deployments path)
+- Auth: `Authorization: Bearer` header (Azure AI Services key)
+- Uses `httpx` for direct HTTP calls (not the OpenAI Python SDK)
 
 **Parameters:**
 
