@@ -106,6 +106,59 @@ opening in the user's default browser or file manager.
 - Use terminal hyperlink escape sequences (OSC 8) where supported
 - Clicking a file path opens in Finder/Explorer; clicking a URL opens in browser
 
+### 3f. Image Generation Tool
+
+Allow chat models to generate images via tool calling. When a user asks any chat model
+(e.g., GPT-5.1) to create an image, the model invokes the `generate_image` tool which
+calls a separate GPT-image-1 deployment on the same Azure OpenAI resource.
+
+**Model:** GPT-image-1 (Azure OpenAI deployment)
+
+**API:** `client.images.generate()` via the OpenAI Python SDK
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `prompt` | string, required | Text description of the image to generate |
+| `size` | enum, optional | `1024x1024` (default), `1024x1536` (portrait), `1536x1024` (landscape). Model chooses based on context. |
+| `quality` | enum, optional | `low`, `medium`, `high` (default). User-configurable default via `/image quality <level>`. |
+
+**API Response:**
+- GPT-image-1 returns `b64_json` only (no URL option)
+- Response contains base64-encoded PNG data
+- Decode and save to `~/Downloads/` using the same sandbox as `create_file`
+
+**Output Behavior:**
+- Auto-save PNG to `~/Downloads/` with auto-generated filename (e.g., `image_20260306_001234.png`)
+- Display inline in the TUI if the terminal supports images (Textual image widget or sixel)
+- Return a `file://` URL in the tool result for clickable opening
+- Tool result includes the prompt used and image dimensions
+
+**Configuration:**
+
+| Env Variable | Description |
+|-------------|-------------|
+| `AZURE_OPENAI_IMAGE_DEPLOYMENT` | Deployment name for GPT-image-1 (e.g., `gpt-image-1`) |
+
+- Uses the same `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` as chat models
+- Tool is **auto-registered only when `AZURE_OPENAI_IMAGE_DEPLOYMENT` is set** (like Tavily)
+- If not configured, tool is not available — chat models simply won't see it
+
+**User Commands:**
+- `/image quality [low|medium|high]` — View/set default quality (persisted)
+- `/tools info generate_image` — Inspect tool schema
+
+**Setup Scripts:**
+- Both `setup.sh` and `setup.ps1` should deploy `gpt-image-1` alongside other models
+- Write `AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-1` to `.env`
+- Handle case where model isn't available in the user's region (graceful skip with warning)
+
+**Security:**
+- Same sandbox as `create_file` — files only written to `~/Downloads/`
+- No user-supplied filenames (auto-generated from timestamp to prevent injection)
+- Image size limited by API (max ~4 MB per image from GPT-image-1)
+
 ### 3c. Responses API Migration (Azure OpenAI)
 
 Migrate Azure OpenAI models from the Chat Completions API (`client.chat.completions.create`)

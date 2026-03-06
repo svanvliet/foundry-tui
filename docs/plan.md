@@ -1001,12 +1001,116 @@ Make URLs and file paths in messages clickable.
 
 ---
 
-## Phase 12: Advanced Features (Future)
+## Phase 12: Image Generation Tool
+
+Add a `generate_image` tool backed by GPT-image-1 on Azure OpenAI. Chat models invoke
+it as a tool call when the user asks for images. Images are saved to ~/Downloads/ and
+displayed inline if supported.
+
+### Design Decisions
+
+| Decision | Choice |
+|----------|--------|
+| Image model | GPT-image-1 (Azure OpenAI deployment) |
+| API | `client.images.generate()` — same SDK, same endpoint |
+| Tool availability | Auto-registered when `AZURE_OPENAI_IMAGE_DEPLOYMENT` is set |
+| Size | Model picks: 1024×1024, 1024×1536, 1536×1024 |
+| Quality | User-configurable default (high), persisted, `/image quality <level>` |
+| Output | Save to ~/Downloads/ + display inline in TUI |
+| Filename | Auto-generated timestamp (`image_20260306_001234.png`) |
+
+---
+
+### 12.1 — Image Generation Tool
+
+**File:** `tools/image_generate.py` (new)
+
+- [ ] **Create `GenerateImageTool` class**
+  - Parameters: `prompt` (str, required), `size` (enum, optional), `quality` (enum, optional)
+  - Uses `AzureOpenAI` client with same endpoint/key as chat models
+  - Calls `client.images.generate(model=deployment, prompt=..., response_format="b64_json", ...)`
+  - Decodes base64 response → writes PNG to `~/Downloads/image_YYYYMMDD_HHMMSS.png`
+  - Uses `resolve_collision()` from `file_create.py` for filename conflicts
+  - Returns: file:// URL, dimensions, size in KB, and the prompt used
+
+- [ ] **Configuration**
+  - Read `AZURE_OPENAI_IMAGE_DEPLOYMENT` from env/config
+  - Add to `Config` model and `.env.example`
+  - Tool only registered when deployment is configured
+
+- [ ] **Register in `tools/__init__.py`**
+  - Conditional: only register if image deployment is configured
+  - Pattern: like Tavily (check env var, skip if missing)
+
+---
+
+### 12.2 — User Commands
+
+**Files:** `app.py`, `ui/input.py`
+
+- [ ] **Add `/image` command**
+  - `/image quality` — show current quality default
+  - `/image quality low|medium|high` — set quality (persisted via `persistence.py`)
+  - Tab completion for quality subcommand
+
+- [ ] **Persist quality setting**
+  - `get_image_quality()` / `set_image_quality()` in `storage/persistence.py`
+  - Default: `high`
+
+---
+
+### 12.3 — Inline Image Display
+
+**Files:** `ui/chat.py`
+
+- [ ] **Display generated images in the TUI**
+  - Research Textual's image display capabilities (Textual 0.80+ has image support?)
+  - If not natively supported, show a placeholder with the file:// link
+  - Fallback: ASCII art preview or just the clickable link
+
+---
+
+### 12.4 — Setup Scripts
+
+**Files:** `scripts/setup.sh`, `scripts/setup.ps1`
+
+- [ ] **Deploy gpt-image-1 in setup.sh**
+  - Add after embedding model deployment
+  - `az cognitiveservices account deployment create` with `--model-name gpt-image-1`
+  - Write `AZURE_OPENAI_IMAGE_DEPLOYMENT=gpt-image-1` to `.env`
+  - Graceful skip if model not available in region (warning, not error)
+
+- [ ] **Deploy gpt-image-1 in setup.ps1**
+  - Same logic in PowerShell
+  - Same env var written to `.env`
+
+---
+
+### 12.5 — Documentation
+
+- [ ] Update README with `generate_image` tool in Built-in Tools table
+- [ ] Add `AZURE_OPENAI_IMAGE_DEPLOYMENT` to env var table
+- [ ] Update `/image` in commands table
+- [ ] Note that image generation requires separate deployment
+
+---
+
+### Implementation Order
+
+```
+12.1 (Tool) ──→ 12.2 (Commands) ──→ 12.3 (Inline Display) ──→ 12.4 (Scripts) ──→ 12.5 (Docs)
+```
+
+12.1 is the core. 12.2 and 12.3 enhance UX. 12.4 and 12.5 are setup/docs.
+
+---
+
+## Phase 13: Advanced Features (Future)
 
 - [ ] Per-model token tracking (cumulative across sessions)
 - [ ] Model provisioning from catalog (in-app)
 - [ ] Side-by-side model comparison
-- [ ] Image/vision support
+- [ ] Vision/image input support
 - [ ] Code interpreter built-in tool (RAPI)
 - [ ] Computer-use tool (RAPI)
 
@@ -1014,8 +1118,8 @@ Make URLs and file paths in messages clickable.
 
 ## Current Status
 
-**Phase**: Phase 11 — File Creation Tool & Clickable Links ✅
-**Current Task**: None — all phases through 11 complete
+**Phase**: Phase 12 — Image Generation Tool
+**Current Task**: Ready for implementation
 **Blockers**: None
 
 ---
@@ -1048,3 +1152,4 @@ Make URLs and file paths in messages clickable.
 | 2026-03-05 | Phase 10 | Complete | Responses API for Azure OpenAI models with built-in web search and server-side state |
 | 2026-03-05 | Phase 11 plan | Complete | File creation tool with security sandboxing + clickable TUI links |
 | 2026-03-05 | Phase 11 | Complete | create_file tool (~/Downloads/ sandbox), clickable links via Textual Markdown |
+| 2026-03-06 | Phase 12 plan | Complete | Image generation tool via GPT-image-1 deployment |
