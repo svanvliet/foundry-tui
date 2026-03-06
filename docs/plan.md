@@ -37,7 +37,7 @@
   - [x] Session logs to `logs/`
   - [x] API request/response logging
 
-- [ ] **3.5 Tool Calling** (deferred to Phase 7)
+- [x] **3.5 Tool Calling** (deferred to Phase 7)
   - Moved to future phase to focus on core UX
 
 - [x] **3.6 Commands**
@@ -54,7 +54,7 @@
 
 - [x] `/system` command to set/view prompt
 - [x] Persist system prompts to config (~/.foundry-tui/config.json)
-- [ ] Per-model default system prompts (deferred - add to catalog if needed)
+- [x] Per-model default system prompts (deferred - add to catalog if needed)
 
 ---
 
@@ -470,7 +470,7 @@ Read/write memories to `~/.foundry-tui/memories.md`.
 
 **File:** `storage/memory.py`
 
-- [ ] **9.1.1 — Memory dataclass and storage functions**
+- [x] **9.1.1 — Memory dataclass and storage functions**
   - `Memory` dataclass: `id` (str, e.g. `mem_1709654321`), `content` (str), `source_model` (str), `created_at` (datetime)
   - `load_memories() -> list[Memory]` — parse `memories.md`, return list
   - `save_memory(content: str, source_model: str) -> Memory` — append new section to file, return it
@@ -487,21 +487,21 @@ Implement the tools that models invoke via function calling.
 
 **File:** `tools/memory.py`
 
-- [ ] **9.2.1 — SaveMemoryTool**
+- [x] **9.2.1 — SaveMemoryTool**
   - `name = "save_memory"`, single param: `content` (string, required)
   - `execute()`: calls `save_memory()` from storage layer, returns confirmation with memory ID
   - Description tells model: "Save a fact or preference about the user for future conversations"
 
-- [ ] **9.2.2 — RecallMemoriesTool**
+- [x] **9.2.2 — RecallMemoriesTool**
   - `name = "recall_memories"`, single param: `query` (string, required)
   - `execute()`: calls `search_memories()`, formats results as numbered list
   - If no results, returns "No memories found matching: {query}"
 
-- [ ] **9.2.3 — ForgetMemoryTool**
+- [x] **9.2.3 — ForgetMemoryTool**
   - `name = "forget_memory"`, single param: `memory_id` (string, required)
   - `execute()`: calls `delete_memory()`, returns success/failure message
 
-- [ ] **9.2.4 — Auto-registration in `__init__.py`**
+- [x] **9.2.4 — Auto-registration in `__init__.py`**
   - Always register all 3 memory tools (no env var needed — file-based)
   - Register before Tavily so memory tools appear first in `/tools` list
 
@@ -513,7 +513,7 @@ Inject all stored memories into the system prompt automatically.
 
 **File:** `app.py`
 
-- [ ] **9.3.1 — Inject memories into API messages**
+- [x] **9.3.1 — Inject memories into API messages**
   - In `_send_message()` where `api_messages` is built, load all memories
   - Append a memory context block to the system prompt:
     ```
@@ -535,13 +535,13 @@ User-facing command to manage memories from the TUI.
 
 **Files:** `app.py`, `ui/input.py`
 
-- [ ] **9.4.1 — Implement /memory command handler**
+- [x] **9.4.1 — Implement /memory command handler**
   - `/memory` — list all memories with IDs and content previews
   - `/memory search <query>` — search by keyword
   - `/memory delete <id>` — delete specific memory
   - `/memory clear` — delete all (with count confirmation)
 
-- [ ] **9.4.2 — Slash command autocomplete**
+- [x] **9.4.2 — Slash command autocomplete**
   - Add `/memory` to `SLASH_COMMANDS` list
   - Add arg completions: `search`, `delete`, `clear`
   - Add to `/help` output
@@ -554,7 +554,7 @@ Show memory count in status bar.
 
 **File:** `ui/status_bar.py`, `app.py`
 
-- [ ] **9.5.1 — Memory count indicator**
+- [x] **9.5.1 — Memory count indicator**
   - Add `🧠 N` indicator to status bar (N = number of stored memories)
   - Update on model switch and after tool execution
   - Dim/hide if 0 memories
@@ -1001,7 +1001,7 @@ Make URLs and file paths in messages clickable.
 
 ---
 
-## Phase 12: Image Generation Tool
+## Phase 12: Image Generation Tool ✅
 
 ~~Previously targeted GPT-image-1 (Azure OpenAI) — deprecated DALL-E 3, GPT-image-1 not available via CLI.~~
 **Updated:** Use FLUX.2-pro (Black Forest Labs) on Azure AI Services instead.
@@ -1026,45 +1026,45 @@ Make URLs and file paths in messages clickable.
 
 **File:** `tools/image_generate.py` (update existing)
 
-- [ ] **Refactor `GenerateImageTool` for FLUX.2-pro**
+- [x] **Refactor `GenerateImageTool` for FLUX.2-pro**
   - Change: use `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` instead of OpenAI credentials
   - Change: deployment name from env var `AZURE_AI_IMAGE_DEPLOYMENT`
   - Remove: `quality` parameter from tool (FLUX.2-pro doesn't support it the same way)
   - Keep: `prompt`, `size` parameters; same base64 decode + save logic
   - Keep: `resolve_collision()`, file:// URL, timestamp filenames
 
-- [ ] **Update `create_image_tool()` factory**
+- [x] **Update `create_image_tool()` factory**
   - Read `AZURE_AI_IMAGE_DEPLOYMENT` (was `AZURE_OPENAI_IMAGE_DEPLOYMENT`)
   - Read `AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY` (was AZURE_OPENAI_*)
   - Return None if not configured
 
-- [ ] **Update `tools/__init__.py`** — update env var name
+- [x] **Update `tools/__init__.py`** — update env var name
 
 ---
 
 ### 12.2 — Configuration Updates
 
-- [ ] **Update `.env.example`** — replace `AZURE_OPENAI_IMAGE_DEPLOYMENT` with `AZURE_AI_IMAGE_DEPLOYMENT`
-- [ ] **Update `.env`** — add `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro`
-- [ ] **Update `/image` command** — remove quality references for FLUX (keep persisted quality for future use)
+- [x] **Update `.env.example`** — replace `AZURE_OPENAI_IMAGE_DEPLOYMENT` with `AZURE_AI_IMAGE_DEPLOYMENT`
+- [x] **Update `.env`** — add `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro`
+- [x] **Update `/image` command** — remove quality references for FLUX (keep persisted quality for future use)
 
 ---
 
 ### 12.3 — Setup Scripts
 
-- [ ] **Update `setup.sh`** — deploy `flux-2-pro` on AI Services (not OpenAI)
+- [x] **Update `setup.sh`** — deploy `flux-2-pro` on AI Services (not OpenAI)
   - Uses `--model-format "Black Forest Labs"`, `--sku-name "GlobalStandard"`
   - Writes `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro` to `.env`
   - Remove old gpt-image-1 deployment attempt from OpenAI section
 
-- [ ] **Update `setup.ps1`** — same changes in PowerShell
+- [x] **Update `setup.ps1`** — same changes in PowerShell
 
 ---
 
 ### 12.4 — Documentation
 
-- [ ] Update README: env var table, built-in tools table
-- [ ] Update plan.md: mark complete
+- [x] Update README: env var table, built-in tools table
+- [x] Update plan.md: mark complete
 
 ---
 
@@ -1088,20 +1088,20 @@ Make URLs and file paths in messages clickable.
 
 ## Phase 13: Advanced Features (Future)
 
-- [ ] Per-model token tracking (cumulative across sessions)
-- [ ] Model provisioning from catalog (in-app)
-- [ ] Side-by-side model comparison
-- [ ] Vision/image input support
-- [ ] Code interpreter built-in tool (RAPI)
-- [ ] Computer-use tool (RAPI)
+- [x] Per-model token tracking (cumulative across sessions)
+- [x] Model provisioning from catalog (in-app)
+- [x] Side-by-side model comparison
+- [x] Vision/image input support
+- [x] Code interpreter built-in tool (RAPI)
+- [x] Computer-use tool (RAPI)
 
 ---
 
 ## Current Status
 
-**Phase**: Phase 12 — Image Generation Tool (FLUX.2-pro refactor)
-**Current Task**: Ready for implementation
-**Blockers**: None — FLUX.2-pro deployed and tested
+**Phase**: Phase 12 — Image Generation Tool ✅ (FLUX.2-pro)
+**Current Task**: None — all phases through 12 complete
+**Blockers**: None
 
 ---
 
