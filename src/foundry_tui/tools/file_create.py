@@ -129,7 +129,8 @@ class CreateFileTool(Tool):
             # Decode content
             if encoding == "base64":
                 try:
-                    content_bytes = base64.b64decode(content, validate=True)
+                    # Use validate=False to tolerate minor padding issues from LLMs
+                    content_bytes = base64.b64decode(content)
                 except Exception:
                     return ToolResult(
                         content="Error: Invalid base64 content. Ensure content is properly base64-encoded.",
