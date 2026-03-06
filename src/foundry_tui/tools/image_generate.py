@@ -1,19 +1,31 @@
-"""Image generation tool — calls FLUX.2-pro on Azure AI Services."""
+"""Image generation tool — calls FLUX.2-pro on Azure AI Services.
+
+Uses the Black Forest Labs provider API (not the OpenAI deployments path):
+  POST {endpoint}/providers/blackforestlabs/v1/{deployment}?api-version=preview
+  Auth: Bearer token
+  Body: { prompt, model, width, height, n }
+  Response: { data: [{ b64_json }] }
+"""
 
 import base64
 import logging
 import os
 from datetime import datetime
-from pathlib import Path
 
-from openai import AsyncAzureOpenAI
+import httpx
 
 from foundry_tui.tools.base import Tool, ToolResult
 from foundry_tui.tools.file_create import DOWNLOADS_DIR, resolve_collision, _path_to_file_url
 
 logger = logging.getLogger(__name__)
 
-VALID_SIZES = {"1024x1024", "1024x1536", "1536x1024"}
+# FLUX.2-pro supports up to 4MP; these are common presets
+SIZE_MAP = {
+    "1024x1024": (1024, 1024),
+    "1024x1536": (1024, 1536),
+    "1536x1024": (1536, 1024),
+}
+VALID_SIZES = set(SIZE_MAP.keys())
 
 
 class GenerateImageTool(Tool):
@@ -53,37 +65,54 @@ class GenerateImageTool(Tool):
         endpoint: str,
         api_key: str,
         deployment: str,
-        api_version: str = "2024-12-01-preview",
     ):
         self._deployment = deployment
-        self._client = AsyncAzureOpenAI(
-            azure_endpoint=endpoint,
-            api_key=api_key,
-            api_version=api_version,
-            max_retries=0,
+        self._api_url = (
+            f"{endpoint.rstrip('/')}/providers/blackforestlabs"
+            f"/v1/{deployment}?api-version=preview"
         )
+        self._headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
 
     async def execute(self, *, prompt: str, size: str = "1024x1024") -> ToolResult:
         """Generate an image and save it to ~/Downloads/."""
         try:
             if size not in VALID_SIZES:
                 size = "1024x1024"
+            width, height = SIZE_MAP[size]
 
             logger.info(
                 "Generating image: prompt=%s, size=%s",
                 prompt[:80], size,
             )
 
-            response = await self._client.images.generate(
-                model=self._deployment,
-                prompt=prompt,
-                size=size,
-                response_format="b64_json",
-                n=1,
-            )
+            payload = {
+                "prompt": prompt,
+                "model": self._deployment,
+                "width": width,
+                "height": height,
+                "n": 1,
+            }
 
-            image_data = response.data[0]
-            b64_content = image_data.b64_json
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    self._api_url,
+                    headers=self._headers,
+                    json=payload,
+                )
+
+            if response.status_code != 200:
+                error_body = response.text[:300]
+                logger.error("FLUX API error %d: %s", response.status_code, error_body)
+                return ToolResult(
+                    content=f"Error: Image API returned {response.status_code}: {error_body}",
+                    error=True,
+                )
+
+            data = response.json()
+            b64_content = data.get("data", [{}])[0].get("b64_json")
             if not b64_content:
                 return ToolResult(
                     content="Error: API returned empty image data.",
@@ -104,18 +133,19 @@ class GenerateImageTool(Tool):
 
             logger.info("Image saved: %s (%.1f KB)", target, size_kb)
 
-            revised = getattr(image_data, "revised_prompt", None)
-            prompt_note = f"\n🔄 Revised prompt: {revised}" if revised else ""
-
             return ToolResult(
                 content=(
                     f"✅ Image generated and saved\n"
                     f"📁 Location: {file_url}\n"
                     f"📐 Size: {size} | 📏 {size_kb:.0f} KB"
-                    f"{prompt_note}"
                 ),
             )
 
+        except httpx.TimeoutException:
+            return ToolResult(
+                content="Error: Image generation timed out. FLUX.2-pro can take up to 60s — please try again.",
+                error=True,
+            )
         except Exception as e:
             error_msg = str(e)
             if "content_policy" in error_msg.lower() or "safety" in error_msg.lower():
