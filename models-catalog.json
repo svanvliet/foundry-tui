@@ -6,9 +6,7 @@
       "provider": "mistral",
       "category": "chat",
       "deployment": {
-        "type": "serverless",
-        "endpoint_env": "SERVERLESS_ENDPOINT_MISTRAL_SMALL",
-        "key_env": "SERVERLESS_KEY_MISTRAL_SMALL"
+        "deployment_name": "mistral-small-2503"
       },
       "capabilities": {
         "tools": true,
@@ -24,7 +22,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-4o"
       },
       "capabilities": {
@@ -47,7 +44,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-4o-mini"
       },
       "capabilities": {
@@ -70,7 +66,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-4-1"
       },
       "capabilities": {
@@ -93,7 +88,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-4-1-mini"
       },
       "capabilities": {
@@ -116,7 +110,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-4-1-nano"
       },
       "capabilities": {
@@ -139,7 +132,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-5-chat"
       },
       "capabilities": {
@@ -162,7 +154,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-5-mini"
       },
       "capabilities": {
@@ -185,7 +176,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-5-nano"
       },
       "capabilities": {
@@ -208,7 +198,6 @@
       "provider": "openai",
       "category": "chat",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "gpt-5-1-chat"
       },
       "capabilities": {
@@ -231,7 +220,6 @@
       "provider": "openai",
       "category": "reasoning",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "o1"
       },
       "capabilities": {
@@ -254,7 +242,6 @@
       "provider": "openai",
       "category": "reasoning",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "o3-mini"
       },
       "capabilities": {
@@ -277,7 +264,6 @@
       "provider": "openai",
       "category": "reasoning",
       "deployment": {
-        "type": "azure_openai",
         "deployment_name": "o4-mini"
       },
       "capabilities": {
@@ -300,7 +286,6 @@
       "provider": "deepseek",
       "category": "reasoning",
       "deployment": {
-        "type": "azure_ai",
         "deployment_name": "deepseek-r1"
       },
       "capabilities": {
@@ -321,8 +306,7 @@
       "provider": "deepseek",
       "category": "chat",
       "deployment": {
-        "type": "azure_ai",
-        "deployment_name": "deepseek-v3-2"
+        "deployment_name": "DeepSeek-V3-0324"
       },
       "capabilities": {
         "tools": true,
@@ -342,7 +326,6 @@
       "provider": "xai",
       "category": "chat",
       "deployment": {
-        "type": "azure_ai",
         "deployment_name": "grok-3"
       },
       "capabilities": {
@@ -363,7 +346,6 @@
       "provider": "xai",
       "category": "reasoning",
       "deployment": {
-        "type": "azure_ai",
         "deployment_name": "grok-4-1-fast-reasoning"
       },
       "capabilities": {
@@ -384,8 +366,7 @@
       "provider": "moonshot",
       "category": "chat",
       "deployment": {
-        "type": "azure_ai",
-        "deployment_name": "kimi-k2-5"
+        "deployment_name": "kimi-k2.5"
       },
       "capabilities": {
         "tools": true,

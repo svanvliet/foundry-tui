@@ -1001,7 +1001,140 @@ Make URLs and file paths in messages clickable.
 
 ---
 
-## Phase 12: Advanced Features (Future)
+## Phase 12: Deployment Coalescence & Test Suite
+
+Collapse the three separate API clients and two endpoint configurations into a
+**single client backed by the OpenAI SDK pointing at a single Azure AI endpoint**.
+
+### 12.1 Deployment Coalescence
+
+**Architecture — Before:**
+```
+Config:  AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_API_KEY  →  AzureOpenAIClient (OAI SDK, CAPI)
+                                                         AzureOpenAIResponsesClient (OAI SDK, RAPI)
+         AZURE_AI_ENDPOINT + AZURE_AI_API_KEY           →  AzureAIClient (raw httpx)
+         SERVERLESS_ENDPOINT_* + SERVERLESS_KEY_*       →  ServerlessClient (raw httpx)
+```
+
+**Architecture — After:**
+```
+Config:  AZURE_AI_ENDPOINT + AZURE_AI_API_KEY  →  single OpenAI SDK client
+                                                    ├─ client.chat.completions.create()  (CAPI)
+                                                    └─ client.responses.create()         (RAPI)
+```
+
+All models go through the same Azure AI endpoint. The OpenAI SDK handles both
+CAPI and RAPI protocols. The `model.capabilities.api` field ("completions" or
+"responses") selects which SDK method to call. The raw httpx clients
+(`AzureAIClient`, `ServerlessClient`) are deleted.
+
+#### Changes Made
+
+- [x] `models.py` — Removed `DeploymentType`, `AzureOpenAIDeployment`, `AzureAIDeployment`,
+  `ServerlessDeployment`. Added unified `Deployment` class. `deployment_type` property →
+  `deployment_name`.
+- [x] `models-catalog.json` — Mistral Small deployment simplified to `deployment_name` only.
+- [x] Test infrastructure — pytest + pytest-asyncio configured, 72 unit tests passing.
+
+#### Still To Do
+
+- [x] `config.py` — Remove `AzureOpenAIConfig`. `Config` holds a single endpoint + key
+  from `AZURE_AI_ENDPOINT` / `AZURE_AI_API_KEY`. Remove `get_serverless_*()` methods.
+  Remove `AZURE_OPENAI_*` env var requirements. Normalize endpoint (strip `/api/projects/`).
+- [x] `api/client.py` — Single standard `AsyncOpenAI` instance with
+  `base_url={endpoint}/openai/v1`. Route by `model.capabilities.api` to either
+  `client.chat.completions.create()` or `client.responses.create()`. No `api_version` needed.
+- [x] Delete `api/azure_ai.py` (raw httpx CAPI client — replaced by OAI SDK).
+- [x] Delete `api/serverless.py` (raw httpx serverless client — removed).
+- [x] `api/azure_openai.py` — Types moved to `api/types.py`. File deleted.
+- [x] `api/azure_openai_responses.py` — RAPI logic merged into `client.py`, then deleted.
+- [x] `models-catalog.json` — Remove vestigial `"type"` fields. Fix deployment names
+  (`deepseek-v3-2` → `DeepSeek-V3-0324`, `kimi-k2-5` → `kimi-k2.5`).
+- [x] `api/__init__.py` — Updated exports to reflect new single-client structure.
+- [x] `app.py` — Updated to use new Config / ChatClient shapes.
+- [x] `api/embeddings.py` — Switched to `AsyncOpenAI` with `/openai/v1` base URL.
+- [x] Integration tests — Updated to use unified `ChatClient`, parametrized by model.
+- [x] Unit tests — 73 tests passing (config, models, types, tool registry, conversations, persistence).
+
+### 12.2 Test Infrastructure (Done)
+
+- [x] pytest + pytest-asyncio in `[project.optional-dependencies]`
+- [x] pytest config in `pyproject.toml` (markers, asyncio mode)
+- [x] Directory structure created
+
+```
+tests/
+├── conftest.py              # Shared fixtures (catalog, config, mock env)
+├── unit/
+│   ├── test_models.py       # Model catalog, Pydantic parsing, lookups
+│   ├── test_config.py       # Config loading, env var validation
+│   ├── test_types.py        # Message.to_api_dict(), StreamChunk, TokenUsage
+│   ├── test_tool_registry.py # ToolRegistry register/execute/error handling
+│   ├── test_conversations.py # Conversation save/load round-trip
+│   └── test_persistence.py  # User config CRUD, model persistence
+└── integration/
+    ├── conftest.py           # Integration fixtures (real config, live client)
+    ├── test_completions.py   # CAPI models (all non-RAPI)
+    ├── test_responses.py     # RAPI models (GPT-4o, GPT-4.1, o-series)
+    └── test_tool_calling.py  # Tool calling across both APIs
+```
+
+### 12.3 Unit Tests (Done — 72 passing)
+
+Tests cover: model catalog parsing, config loading/validation, API types
+serialization, tool registry, conversation persistence, user config CRUD.
+
+### 12.4 Integration Tests
+
+All integration tests:
+- Load credentials from `.env` (`AZURE_AI_ENDPOINT` + `AZURE_AI_API_KEY`)
+- Marked `@pytest.mark.integration`
+- Use a simple prompt: `"Say hello in exactly 3 words."`
+- Verify: non-empty response, valid token usage, no exceptions
+
+#### `test_completions.py` — Chat Completions API
+
+Parametrized over all models with `capabilities.api == "completions"`:
+currently Mistral, DeepSeek, Grok, Kimi.
+
+| Test | What it validates |
+|------|------------------|
+| `test_streaming_basic[model_id]` | Streaming produces chunks, final chunk has usage |
+| `test_non_streaming_basic[model_id]` | Returns (content, usage, tool_calls) tuple |
+| `test_tool_calling[model_id]` | Models with `tools=true` return tool_calls |
+
+#### `test_responses.py` — Responses API (RAPI)
+
+Parametrized over all models with `capabilities.api == "responses"`:
+currently GPT-4o, GPT-4.1, GPT-5, o1, o3-mini, o4-mini.
+
+| Test | What it validates |
+|------|------------------|
+| `test_streaming_basic[model_id]` | Streaming produces content + usage |
+| `test_non_streaming_basic[model_id]` | Returns content + usage |
+| `test_tool_calling[model_id]` | Tool calling for `tools=true` models |
+| `test_web_search[model_id]` | Web search for `web_search=true` models |
+| `test_response_id_chaining` | Server-side state chaining works |
+
+### 12.5 Test Execution
+
+```bash
+# Unit tests only (fast, no credentials)
+uv run pytest tests/unit/ -v
+
+# Integration tests only (needs .env)
+uv run pytest tests/integration/ -v -m integration
+
+# Everything
+uv run pytest tests/ -v
+
+# Specific model
+uv run pytest tests/integration/ -v -k "gpt-4o"
+```
+
+---
+
+## Phase 13: Advanced Features (Future)
 
 - [ ] Per-model token tracking (cumulative across sessions)
 - [ ] Model provisioning from catalog (in-app)
@@ -1014,8 +1147,8 @@ Make URLs and file paths in messages clickable.
 
 ## Current Status
 
-**Phase**: Phase 11 — File Creation Tool & Clickable Links
-**Current Task**: Ready for implementation
+**Phase**: Phase 12 — Deployment Coalescence & Test Suite
+**Current Task**: Complete — All clients unified, tests passing
 **Blockers**: None
 
 ---
@@ -1047,3 +1180,6 @@ Make URLs and file paths in messages clickable.
 | 2026-03-05 | Phase 10 plan | Complete | Responses API migration for Azure OpenAI models |
 | 2026-03-05 | Phase 10 | Complete | Responses API for Azure OpenAI models with built-in web search and server-side state |
 | 2026-03-05 | Phase 11 plan | Complete | File creation tool with security sandboxing + clickable TUI links |
+| 2026-03-11 | Phase 12 plan | Complete | Deployment coalescence + comprehensive test suite (unit + integration) |
+| 2026-03-11 | Phase 12.1 | Complete | Collapsed to single `AsyncOpenAI` client with `base_url=/openai/v1`. Deleted 4 old client files. |
+| 2026-03-11 | Phase 12.2 | Complete | 73 unit tests + 29 integration tests. All unit tests pass; integration tests pass when not rate-limited. |

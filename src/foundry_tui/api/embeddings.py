@@ -1,14 +1,14 @@
-"""Azure OpenAI embedding client for semantic memory search.
+"""Azure AI embedding client for semantic memory search.
 
 Uses text-embedding-3-small (1536 dims) deployed on the same
-Azure OpenAI resource as the chat models. No new credentials needed.
+Azure AI endpoint as the chat models. No separate credentials needed.
 """
 
 import logging
 import math
 import os
 
-from openai import AsyncAzureOpenAI
+from openai import AsyncOpenAI
 
 logger = logging.getLogger("foundry_tui")
 
@@ -23,16 +23,15 @@ class EmbeddingClient:
         self,
         endpoint: str,
         api_key: str,
-        api_version: str = "2024-12-01-preview",
         deployment: str | None = None,
     ):
         self._deployment = deployment or os.getenv(
-            "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", DEFAULT_DEPLOYMENT
+            "AZURE_AI_EMBEDDING_DEPLOYMENT", DEFAULT_DEPLOYMENT
         )
-        self._client = AsyncAzureOpenAI(
-            azure_endpoint=endpoint,
+        base_url = f"{endpoint}/openai/v1"
+        self._client = AsyncOpenAI(
+            base_url=base_url,
             api_key=api_key,
-            api_version=api_version,
             max_retries=0,
         )
         self._available: bool | None = None  # cached availability check
@@ -88,18 +87,21 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def create_embedding_client() -> EmbeddingClient | None:
-    """Create an EmbeddingClient if Azure OpenAI credentials are configured."""
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
-    deployment = os.getenv("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+    """Create an EmbeddingClient if Azure AI credentials are configured."""
+    endpoint = os.getenv("AZURE_AI_ENDPOINT")
+    api_key = os.getenv("AZURE_AI_API_KEY")
+    deployment = os.getenv("AZURE_AI_EMBEDDING_DEPLOYMENT")
 
     if not endpoint or not api_key or not deployment:
         return None
 
+    # Normalize to resource-level URL
+    if "/api/projects/" in endpoint:
+        endpoint = endpoint.split("/api/projects/")[0]
+    endpoint = endpoint.rstrip("/")
+
     return EmbeddingClient(
         endpoint=endpoint,
         api_key=api_key,
-        api_version=api_version,
         deployment=deployment,
     )

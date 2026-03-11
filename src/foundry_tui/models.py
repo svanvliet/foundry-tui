@@ -1,17 +1,8 @@
 """Pydantic models for Foundry TUI configuration."""
 
 from enum import Enum
-from typing import Literal
 
 from pydantic import BaseModel, Field
-
-
-class DeploymentType(str, Enum):
-    """Model deployment types."""
-
-    AZURE_OPENAI = "azure_openai"
-    AZURE_AI = "azure_ai"
-    SERVERLESS = "serverless"
 
 
 class ModelCategory(str, Enum):
@@ -38,26 +29,10 @@ class ModelCapabilities(BaseModel):
     web_search: bool = False  # Built-in web search (RAPI only)
 
 
-class AzureOpenAIDeployment(BaseModel):
-    """Azure OpenAI deployment configuration."""
+class Deployment(BaseModel):
+    """Model deployment configuration."""
 
-    type: Literal["azure_openai"]
     deployment_name: str
-
-
-class AzureAIDeployment(BaseModel):
-    """Azure AI Services deployment configuration."""
-
-    type: Literal["azure_ai"]
-    deployment_name: str
-
-
-class ServerlessDeployment(BaseModel):
-    """Serverless endpoint deployment configuration."""
-
-    type: Literal["serverless"]
-    endpoint_env: str
-    key_env: str
 
 
 class Model(BaseModel):
@@ -67,16 +42,16 @@ class Model(BaseModel):
     name: str
     provider: str
     category: ModelCategory
-    deployment: AzureOpenAIDeployment | AzureAIDeployment | ServerlessDeployment
+    deployment: Deployment
     capabilities: ModelCapabilities
     context_window: int
     max_output_tokens: int
     rate_limits: RateLimits | None = None
 
     @property
-    def deployment_type(self) -> DeploymentType:
-        """Get the deployment type."""
-        return DeploymentType(self.deployment.type)
+    def deployment_name(self) -> str:
+        """Get the deployment name."""
+        return self.deployment.deployment_name
 
 
 class ProvisionableModel(BaseModel):

@@ -9,7 +9,7 @@ import pyperclip
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from foundry_tui.api.azure_openai import Message, ToolCall, ToolCallDelta, ToolCallFunction
+from foundry_tui.api.types import Message, ToolCall, ToolCallDelta, ToolCallFunction
 from foundry_tui.api.client import ChatClient
 from foundry_tui.config import Config
 from foundry_tui.models import Model
@@ -74,7 +74,7 @@ class FoundryApp(App):
         self._server_state: bool = get_server_state()  # Persisted setting
 
         # Initialize unified API client
-        self.client = ChatClient(config=config)
+        self.client = ChatClient(config)
 
         # Initialize tool registry and embedding client
         self.tool_registry, self._embedding_client = create_default_registry(

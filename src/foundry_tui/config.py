@@ -17,17 +17,12 @@ class ConfigError(Exception):
 
 
 @dataclass
-class AzureOpenAIConfig:
-    """Azure OpenAI configuration."""
+class AzureConfig:
+    """Azure AI Foundry configuration — single endpoint for all models.
 
-    endpoint: str
-    api_key: str
-    api_version: str
-
-
-@dataclass
-class AzureAIConfig:
-    """Azure AI Services configuration."""
+    ``endpoint`` is the resource-level URL (no /api/projects/... suffix).
+    Clients append /openai/v1 to form the base URL for the standard OpenAI SDK.
+    """
 
     endpoint: str
     api_key: str
@@ -46,25 +41,10 @@ class AppSettings:
 class Config:
     """Full application configuration."""
 
-    azure_openai: AzureOpenAIConfig
-    azure_ai: AzureAIConfig
+    azure: AzureConfig
     catalog: ModelCatalog
     settings: AppSettings
     default_model: Model
-
-    def get_serverless_key(self, key_env: str) -> str:
-        """Get a serverless API key from environment."""
-        key = os.getenv(key_env)
-        if not key:
-            raise ConfigError(f"Missing serverless key: {key_env}")
-        return key
-
-    def get_serverless_endpoint(self, endpoint_env: str) -> str:
-        """Get a serverless endpoint URL from environment."""
-        endpoint = os.getenv(endpoint_env)
-        if not endpoint:
-            raise ConfigError(f"Missing serverless endpoint: {endpoint_env}")
-        return endpoint
 
 
 def find_project_root() -> Path:
@@ -107,25 +87,20 @@ def load_config() -> Config:
     except Exception as e:
         raise ConfigError(f"Failed to parse model catalog: {e}")
 
-    # Validate required environment variables
-    azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    azure_openai_key = os.getenv("AZURE_OPENAI_API_KEY")
-    azure_openai_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-12-01-preview")
+    # Single Azure AI endpoint for all models
+    azure_endpoint = os.getenv("AZURE_AI_ENDPOINT")
+    azure_key = os.getenv("AZURE_AI_API_KEY")
 
-    if not azure_openai_endpoint or not azure_openai_key:
-        raise ConfigError(
-            "Missing Azure OpenAI configuration. "
-            "Set AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY in .env"
-        )
-
-    azure_ai_endpoint = os.getenv("AZURE_AI_ENDPOINT")
-    azure_ai_key = os.getenv("AZURE_AI_API_KEY")
-
-    if not azure_ai_endpoint or not azure_ai_key:
+    if not azure_endpoint or not azure_key:
         raise ConfigError(
             "Missing Azure AI configuration. "
             "Set AZURE_AI_ENDPOINT and AZURE_AI_API_KEY in .env"
         )
+
+    # Normalize to resource-level URL (strip /api/projects/... if present)
+    if "/api/projects/" in azure_endpoint:
+        azure_endpoint = azure_endpoint.split("/api/projects/")[0]
+    azure_endpoint = azure_endpoint.rstrip("/")
 
     # App settings with defaults
     settings = AppSettings(
@@ -142,14 +117,9 @@ def load_config() -> Config:
         raise ConfigError("No models defined in catalog")
 
     return Config(
-        azure_openai=AzureOpenAIConfig(
-            endpoint=azure_openai_endpoint,
-            api_key=azure_openai_key,
-            api_version=azure_openai_version,
-        ),
-        azure_ai=AzureAIConfig(
-            endpoint=azure_ai_endpoint,
-            api_key=azure_ai_key,
+        azure=AzureConfig(
+            endpoint=azure_endpoint,
+            api_key=azure_key,
         ),
         catalog=catalog,
         settings=settings,
