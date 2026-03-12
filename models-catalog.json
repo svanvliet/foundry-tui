@@ -37,8 +37,8 @@
       "context_window": 128000,
       "max_output_tokens": 16384,
       "rate_limits": {
-        "rpm_per_unit": 6,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 600,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -60,8 +60,8 @@
       "context_window": 128000,
       "max_output_tokens": 16384,
       "rate_limits": {
-        "rpm_per_unit": 10,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 1000,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -83,8 +83,8 @@
       "context_window": 1047576,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -106,8 +106,8 @@
       "context_window": 1047576,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -129,8 +129,8 @@
       "context_window": 1047576,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -152,8 +152,8 @@
       "context_window": 256000,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -175,8 +175,8 @@
       "context_window": 256000,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -198,8 +198,8 @@
       "context_window": 256000,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -221,8 +221,8 @@
       "context_window": 256000,
       "max_output_tokens": 65536,
       "rate_limits": {
-        "rpm_per_unit": 10,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 1000,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -244,8 +244,8 @@
       "context_window": 200000,
       "max_output_tokens": 100000,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 6000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 600000
       }
     },
     {
@@ -267,8 +267,8 @@
       "context_window": 200000,
       "max_output_tokens": 100000,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 10000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 1000000
       }
     },
     {
@@ -290,8 +290,8 @@
       "context_window": 200000,
       "max_output_tokens": 100000,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 100,
+        "tpm_per_unit": 100000
       }
     },
     {
@@ -311,8 +311,8 @@
       "context_window": 64000,
       "max_output_tokens": 8192,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 20,
+        "tpm_per_unit": 20000
       }
     },
     {
@@ -332,8 +332,8 @@
       "context_window": 64000,
       "max_output_tokens": 8192,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 20,
+        "tpm_per_unit": 20000
       }
     },
     {
@@ -353,8 +353,8 @@
       "context_window": 131072,
       "max_output_tokens": 16384,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 50,
+        "tpm_per_unit": 50000
       }
     },
     {
@@ -374,8 +374,8 @@
       "context_window": 131072,
       "max_output_tokens": 32768,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 50,
+        "tpm_per_unit": 50000
       }
     },
     {
@@ -395,8 +395,8 @@
       "context_window": 131072,
       "max_output_tokens": 16384,
       "rate_limits": {
-        "rpm_per_unit": 1,
-        "tpm_per_unit": 1000
+        "rpm_per_unit": 20,
+        "tpm_per_unit": 20000
       }
     }
   ],
