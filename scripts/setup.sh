@@ -367,6 +367,36 @@ if [[ "$DEPLOY_AI" == true ]]; then
     update_env "AZURE_AI_ENDPOINT" "$AI_ENDPOINT"
     update_env "AZURE_AI_API_KEY" "$AI_KEY"
 
+    # Auto-deploy image generation model (FLUX.2-pro by Black Forest Labs)
+    print_info "Deploying image model: FLUX.2-pro..."
+    if az cognitiveservices account deployment show \
+        --name "$AI_ACCOUNT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --deployment-name "flux-2-pro" &> /dev/null; then
+        print_dim "  Image model already deployed"
+    else
+        az cognitiveservices account deployment create \
+            --name "$AI_ACCOUNT_NAME" \
+            --resource-group "$RESOURCE_GROUP" \
+            --deployment-name "flux-2-pro" \
+            --model-name "FLUX.2-pro" \
+            --model-version "1" \
+            --model-format "Black Forest Labs" \
+            --sku-capacity 1 \
+            --sku-name "GlobalStandard" \
+            --output none 2>/dev/null || {
+                print_warning "Could not deploy FLUX.2-pro - image generation will not be available"
+                print_dim "  Model may not be available in your region. You can deploy manually later."
+            }
+    fi
+    # Write env var if deployment exists
+    if az cognitiveservices account deployment show \
+        --name "$AI_ACCOUNT_NAME" \
+        --resource-group "$RESOURCE_GROUP" \
+        --deployment-name "flux-2-pro" &> /dev/null; then
+        update_env "AZURE_AI_IMAGE_DEPLOYMENT" "flux-2-pro"
+    fi
+
     print_success "Azure AI Services configured"
 
     print_warning "Note: DeepSeek, Grok, and other marketplace models require"

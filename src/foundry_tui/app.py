@@ -2,12 +2,15 @@
 
 import asyncio
 import json
+import platform
+import subprocess
+import webbrowser
 from datetime import datetime
 from pathlib import Path
 
 import pyperclip
 from textual.app import App, ComposeResult
-from textual.widgets import Static
+from textual.widgets import Markdown as MarkdownWidget, Static
 
 from foundry_tui.api.azure_openai import Message, ToolCall, ToolCallDelta, ToolCallFunction
 from foundry_tui.api.client import ChatClient
@@ -78,7 +81,7 @@ class FoundryApp(App):
 
         # Initialize tool registry and embedding client
         self.tool_registry, self._embedding_client = create_default_registry(
-            source_model=self.current_model.id
+            source_model=self.current_model.id,
         )
 
         # Max tool loop iterations to prevent runaway loops
@@ -192,7 +195,7 @@ class FoundryApp(App):
             f"Current model: [bold]{self.current_model.name}[/bold] ({self.current_model.provider})"
             f"{system_info}{tools_info}\n"
             f"Type a message and press Enter to chat.\n"
-            f"Commands: /models, /system, /tools, /load, /new, /clear, /copy, /export, /help, /quit",
+            f"Commands: /models, /system, /tools, /image, /load, /new, /clear, /copy, /export, /help, /quit",
             id="welcome",
         )
         chat_log.mount(welcome)
@@ -253,6 +256,8 @@ class FoundryApp(App):
             await self._handle_theme_command(args)
         elif cmd in ("/state",):
             await self._handle_state_command(args)
+        elif cmd in ("/image",):
+            await self._handle_image_command(args)
         elif cmd in ("/help", "/h", "/?"):
             await self._show_help()
         else:
@@ -793,6 +798,22 @@ class FoundryApp(App):
         else:
             await self._add_message("error", "Usage: /state on | /state off")
 
+    async def _handle_image_command(self, args: str) -> None:
+        """Handle the /image command for image generation settings."""
+        image_tool = self.tool_registry.get("generate_image")
+        if not image_tool:
+            await self._add_message("system",
+                "Image generation is not configured.\n\n"
+                "Set AZURE_AI_IMAGE_DEPLOYMENT in .env to enable it.\n"
+                "Run the setup script or deploy FLUX.2-pro on Azure AI Services manually."
+            )
+            return
+
+        await self._add_message("system",
+            "[bold]Image generation:[/bold] Enabled (FLUX.2-pro)\n\n"
+            "Ask any chat model to generate an image and it will use this tool automatically."
+        )
+
     async def _show_help(self) -> None:
         """Show help message."""
         help_text = (
@@ -803,6 +824,7 @@ class FoundryApp(App):
             "  /memory           - List memories (/memory search, /memory delete, /memory clear)\n"
             "  /theme [name]     - View/change color theme\n"
             "  /state [on|off]   - Toggle server-side conversation state (RAPI)\n"
+            "  /image            - Image generation status and info\n"
             "  /load, /convs     - Browse and load saved conversations\n"
             "  /save [title]     - Save current conversation with optional title\n"
             "  /new, /n          - Start a new conversation\n"
@@ -1175,7 +1197,7 @@ class FoundryApp(App):
                     if not full_response.strip():
                         await streaming_msg.remove()
                     else:
-                        streaming_msg.finalize()
+                        await streaming_msg.finalize()
 
                     # Add assistant message with tool_calls to history
                     assistant_msg = Message(
@@ -1234,7 +1256,7 @@ class FoundryApp(App):
                     continue
 
                 # No tool calls — this is the final text response
-                streaming_msg.finalize()
+                await streaming_msg.finalize()
 
                 # Store for /copy command
                 self._last_response = full_response
@@ -1337,3 +1359,36 @@ class FoundryApp(App):
             status_bar = self.query_one(StatusBar)
             status_bar.set_ready()
         self.query_one(MessageInput).focus()
+
+    # --- Link click handling ---
+
+    def on_markdown_link_clicked(self, event: MarkdownWidget.LinkClicked) -> None:
+        """Handle clicks on links in markdown content."""
+        href = event.href
+        log_event("Link clicked", href=href)
+
+        if href.startswith(("http://", "https://")):
+            webbrowser.open(href)
+        elif href.startswith("file://"):
+            self._open_path(href[7:])  # Strip file:// prefix
+        else:
+            # Treat as a local path if it looks like one
+            path = Path(href).expanduser()
+            if path.exists():
+                self._open_path(str(path))
+            else:
+                # Fallback: try as URL
+                webbrowser.open(href)
+
+    def _open_path(self, path: str) -> None:
+        """Open a local file or directory with the system default handler."""
+        try:
+            system = platform.system()
+            if system == "Darwin":
+                subprocess.Popen(["open", path])
+            elif system == "Windows":
+                subprocess.Popen(["explorer", path])
+            else:
+                subprocess.Popen(["xdg-open", path])
+        except Exception as e:
+            log_event("Failed to open path", path=path, error=str(e))

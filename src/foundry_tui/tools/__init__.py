@@ -4,6 +4,8 @@ import logging
 
 from foundry_tui.api.embeddings import EmbeddingClient, create_embedding_client
 from foundry_tui.tools.config import load_user_tools
+from foundry_tui.tools.file_create import CreateFileTool
+from foundry_tui.tools.image_generate import GenerateImageTool, create_image_tool
 from foundry_tui.tools.memory import create_memory_tools
 from foundry_tui.tools.registry import ToolRegistry
 from foundry_tui.tools.tavily_search import create_tavily_search_tool
@@ -37,6 +39,14 @@ def create_default_registry(
     tavily = create_tavily_search_tool()
     if tavily:
         registry.register(tavily)
+
+    # Built-in: File creation (always available, no config needed)
+    registry.register(CreateFileTool())
+
+    # Built-in: Image generation (requires AZURE_AI_IMAGE_DEPLOYMENT)
+    image_tool = create_image_tool()
+    if image_tool:
+        registry.register(image_tool)
 
     # User-defined tools from config
     for tool in load_user_tools():

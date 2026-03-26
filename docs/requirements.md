@@ -106,6 +106,66 @@ opening in the user's default browser or file manager.
 - Use terminal hyperlink escape sequences (OSC 8) where supported
 - Clicking a file path opens in Finder/Explorer; clicking a URL opens in browser
 
+### 3f. Image Generation Tool
+
+Allow chat models to generate images via tool calling. When a user asks any chat model
+(e.g., GPT-5.1) to create an image, the model invokes the `generate_image` tool which
+calls a FLUX.2-pro deployment on Azure AI Services.
+
+**Model:** FLUX.2-pro by Black Forest Labs (Azure AI Services deployment)
+- 32B parameter flow matching model, highest quality among available models
+- Supports text-to-image and image editing
+- 4MP output, photorealistic, text rendering in images
+- Deprecated alternatives: DALL-E 3 (deprecated March 2026), GPT-image-1 (not yet available via CLI)
+
+**API:** Black Forest Labs provider API on Azure AI Services
+- Endpoint: `{AZURE_AI_ENDPOINT}providers/blackforestlabs/v1/flux-2-pro?api-version=preview`
+- Uses the BFL provider path (not the OpenAI deployments path)
+- Auth: `Authorization: Bearer` header (Azure AI Services key)
+- Uses `httpx` for direct HTTP calls (not the OpenAI Python SDK)
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `prompt` | string, required | Text description of the image to generate |
+| `size` | enum, optional | `1024x1024` (default), `1024x1536` (portrait), `1536x1024` (landscape). Model chooses based on context. |
+
+**API Response:**
+- Returns `b64_json` — base64-encoded image data
+- Decode and save to `~/Downloads/` using the same sandbox as `create_file`
+
+**Output Behavior:**
+- Auto-save PNG to `~/Downloads/` with auto-generated filename (e.g., `image_20260306_001234.png`)
+- Return a `file://` URL in the tool result for clickable opening
+- Tool result includes the prompt used and image dimensions
+
+**Configuration:**
+
+| Env Variable | Description |
+|-------------|-------------|
+| `AZURE_AI_IMAGE_DEPLOYMENT` | Deployment name for FLUX.2-pro (e.g., `flux-2-pro`) |
+
+- Uses `AZURE_AI_ENDPOINT` and `AZURE_AI_API_KEY` (Azure AI Services, NOT Azure OpenAI)
+- Tool is **auto-registered only when `AZURE_AI_IMAGE_DEPLOYMENT` is set** (like Tavily)
+- If not configured, tool is not available — chat models simply won't see it
+
+**User Commands:**
+- `/image quality [low|medium|high]` — View/set default quality (persisted)
+- `/tools info generate_image` — Inspect tool schema
+
+**Setup Scripts:**
+- Both `setup.sh` and `setup.ps1` should deploy `flux-2-pro` on the AI Services account
+- Write `AZURE_AI_IMAGE_DEPLOYMENT=flux-2-pro` to `.env`
+- Handle case where model isn't available in the user's region (graceful skip with warning)
+- Model format: `"Black Forest Labs"`, SKU: `GlobalStandard`
+- Rate limit: 30 RPM on GlobalStandard SKU (configurable in Azure portal)
+
+**Security:**
+- Same sandbox as `create_file` — files only written to `~/Downloads/`
+- No user-supplied filenames (auto-generated from timestamp to prevent injection)
+- Content safety enforced by Azure's default RAI policy
+
 ### 3c. Responses API Migration (Azure OpenAI)
 
 Migrate Azure OpenAI models from the Chat Completions API (`client.chat.completions.create`)

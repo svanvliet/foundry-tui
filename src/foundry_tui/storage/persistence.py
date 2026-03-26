@@ -114,3 +114,16 @@ def set_server_state(enabled: bool) -> None:
     config = load_user_config()
     config["server_state"] = enabled
     save_user_config(config)
+
+
+def get_image_quality() -> str:
+    """Get the saved image quality setting (default: 'high')."""
+    config = load_user_config()
+    return config.get("image_quality", "high")
+
+
+def set_image_quality(quality: str) -> None:
+    """Save the image quality setting."""
+    config = load_user_config()
+    config["image_quality"] = quality
+    save_user_config(config)
