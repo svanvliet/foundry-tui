@@ -203,7 +203,7 @@ class AzureOpenAIResponsesClient:
         tools: list[dict] = []
 
         if web_search:
-            tools.append({"type": "web_search_preview"})
+            tools.append({"type": "web_search"})
 
         if function_tools:
             for ft in function_tools:
