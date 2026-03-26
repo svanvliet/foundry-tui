@@ -137,6 +137,20 @@ class AzureOpenAIResponsesClient:
     # ── Input conversion ─────────────────────────────────────────────
 
     @staticmethod
+    def _normalize_call_id(call_id: str | None) -> str:
+        """Normalize legacy tool call IDs to the Responses API format.
+
+        RAPI expects function-call IDs that begin with ``fc``. Older history from
+        CAPI/other providers may use IDs like ``call_...``. Preserve valid IDs and
+        rewrite legacy ones deterministically so assistant/tool history still pairs.
+        """
+        if not call_id:
+            return ""
+        if call_id.startswith("fc"):
+            return call_id
+        return f"fc_{call_id}"
+
+    @staticmethod
     def _messages_to_input(
         messages: list[Message],
     ) -> tuple[list[dict], str | None]:
@@ -163,7 +177,7 @@ class AzureOpenAIResponsesClient:
                 input_items.append(
                     {
                         "type": "function_call_output",
-                        "call_id": msg.tool_call_id or "",
+                        "call_id": AzureOpenAIResponsesClient._normalize_call_id(msg.tool_call_id),
                         "output": msg.content or "",
                     }
                 )
@@ -176,11 +190,12 @@ class AzureOpenAIResponsesClient:
                         {"role": "assistant", "content": msg.content}
                     )
                 for tc in msg.tool_calls:
+                    normalized_id = AzureOpenAIResponsesClient._normalize_call_id(tc.id)
                     input_items.append(
                         {
                             "type": "function_call",
-                            "id": tc.id,
-                            "call_id": tc.id,
+                            "id": normalized_id,
+                            "call_id": normalized_id,
                             "name": tc.function.name,
                             "arguments": tc.function.arguments,
                         }
@@ -260,7 +275,7 @@ class AzureOpenAIResponsesClient:
                     pending_tool_results.append(
                         {
                             "type": "function_call_output",
-                            "call_id": msg.tool_call_id or "",
+                            "call_id": self._normalize_call_id(msg.tool_call_id),
                             "output": msg.content or "",
                         }
                     )
