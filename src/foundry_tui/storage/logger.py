@@ -33,6 +33,9 @@ def setup_logger(name: str = "foundry_tui") -> logging.Logger:
     # Get log level from environment
     log_level = os.getenv("FOUNDRY_TUI_LOG_LEVEL", "INFO").upper()
     logger.setLevel(getattr(logging, log_level, logging.INFO))
+    # Keep app logs in the session log file only; avoid leaking into the TUI
+    # through the root logger's stderr handler configured in __main__.
+    logger.propagate = False
 
     # Create logs directory
     logs_dir = get_logs_dir()
